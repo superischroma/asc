@@ -1,2 +1,2 @@
-g++ -o asc.exe asc.cpp && asc
+g++ -o asc.exe asc.cpp logger.cpp && asc test.as
 pause
