@@ -1,0 +1,12 @@
+function declaration :== [visibility] <type> <identifier>([<type> <identifier>]...)
+type :== byte | short | char | int | long
+identifier :== <any word>
+visibility :== public | private | protected
+variable declaration :== [visibility] <type> <identifier>
+variable definition :== [visibility] <type> <identifier> = <expression> | <identifier> = <expression> Iff identifier declared
+numeric literal :== <any number, real or whole>
+expression :== <<numeric literal> | <identifier> | <function call> | (<expression>) | <expression> <operator> <expression>> <expression ending>
+expression ending :== ; | , | )
+operator :== = | + | - | * | / | % | += | -= | *= | /= | %=
+function call :== <identifier>([expression]...)
+return statement :== return <expression>

@@ -16,6 +16,8 @@ namespace asc
         std::string later;
         asc::syntax_node* syntax_head;
         asc::syntax_node* current_node;
+        asc::syntax_node* last_identifier;
+        asc::syntax_node* scope;
     public:
         tokenizer(std::ifstream& is)
         {
@@ -49,7 +51,7 @@ namespace asc
             {
                 if (c == '\n')
                     linet++;
-                if (c != ' ' && c != '\n' && c != '\t')
+                if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
                     token += c;
                 /// KEYWORD ///
                 if (asc::is_keyword(token))

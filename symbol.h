@@ -9,14 +9,18 @@ namespace asc
     {
     public:
         std::string* name;
-        std::string* type;
+        std::string type;
+        std::string visibility;
         symbol* scope;
+        int stack_m;
 
-        symbol(std::string& name, std::string& type, symbol*& scope)
+        symbol(std::string& name, std::string type, std::string visibility, symbol*& scope)
         {
             this->name = &name;
-            this->type = &type;
+            this->type = type;
+            this->visibility = visibility;
             this->scope = scope;
+            this->stack_m = 0;
         }
     };
 }

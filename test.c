@@ -1,10 +1,17 @@
-int a(int b, int c, int d, int e, int f, int g, int h, int j, int k, int l, int m, int n, int o)
+int k(int w, int x, int y, int z, int a)
 {
-    return 10;
+    //long a = 25;
+    int b;
+    b = 19;
+    short za = 67;
+    char ui = 34;
+    return ui + za;
 }
 
 int main()
 {
-    a(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120);
-    return 0;
+    int i;
+    i = 5;
+    long j = 3 + 4;
+    return k(0, 0, 0, 0, 1);
 }

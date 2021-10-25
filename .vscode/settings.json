@@ -52,6 +52,7 @@
         "memory_resource": "cpp",
         "optional": "cpp",
         "string_view": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "xtree": "cpp"
     }
 }

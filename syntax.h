@@ -56,7 +56,21 @@ namespace asc
         "(",
         ")",
         ";",
-        "="
+        "=",
+        ",",
+        "+",
+        "-",
+        "*",
+        "/"
+    };
+
+    const char* OPERATORS[] = {
+        "=",
+        "+",
+        "-",
+        "*",
+        "/",
+        "%"
     };
 
     int strlen(const char* str)
@@ -88,6 +102,16 @@ namespace asc
                 return strlen(PUNCTUATORS[i]);
         }
         return 0;
+    }
+
+    int get_operator(std::string& test)
+    {
+        for (int i = 0; i < sizeof(OPERATORS) / sizeof(OPERATORS[0]); i++)
+        {
+            if (OPERATORS[i] == test)
+                return i;
+        }
+        return -1;
     }
 
     char get_visibility_id(std::string& test)
@@ -131,6 +155,32 @@ namespace asc
             test == "double";
     }
 
+    int get_type_size(std::string& prim)
+    {
+        if (prim == "void")
+            return 0;
+        if (prim == "byte" || prim == "bool")
+            return 1;
+        if (prim == "char" || prim == "short")
+            return 2;
+        if (prim == "int" || prim == "float")
+            return 4;
+        return 8;
+    }
+
+    std::string get_word(int size)
+    {
+        if (size == 1)
+            return "byte";
+        if (size == 2)
+            return "word";
+        if (size == 4)
+            return "dword";
+        if (size == 8)
+            return "qword";
+        return "-1";
+    }
+
     class syntax_node
     {
     public:
@@ -147,7 +197,7 @@ namespace asc
         }
         std::string stringify()
         {
-            return "syntax_node{type=" + syntax_types::name(type) + ", value=" + *value + ", line=" + std::to_string(line) + "}";
+            return "syntax_node{type=" + syntax_types::name(type) + ", value=" + (value != nullptr ? *value : "") + ", line=" + std::to_string(line) + "}";
         }
         ~syntax_node()
         {
@@ -156,6 +206,7 @@ namespace asc
         }
     };
 
+    /*
     bool parse_expression(syntax_node*& current, assembler& as, std::map<std::string, symbol*>& symbols, symbol*& scope, symbol* sym, bool declaration)
     {
         std::string datast = (sym != nullptr ? *(sym->name) + " db " : "");
@@ -165,7 +216,6 @@ namespace asc
             std::string& value = *(current->value);
             if (value == ";" || value == "{" || value == "}" || value == "," || value.length() == 0) // if we reached the end of the expression
                 break; // break out of the loop
-            std::cout << current->stringify() << std::endl;
             if (value == "=")
             {
                 parse_expression(current = current->next, as, symbols, scope, sym, declaration);
@@ -184,7 +234,28 @@ namespace asc
                     datast += value;
                 }
                 else
-                    as.instruct(*(scope->name), "push dword " + value);
+                {
+                    if (sym != nullptr) // if this is not a standalone constant
+                    {
+                        int size = get_type_size(sym->type);
+                        sym->stack_m = scope->stack_m -= size; // store stack location for identifier and move down stack tracker for scope
+                        as.alloc_delta(*(scope->name), size);
+                        std::cout << "declaration: " << *(scope->name) << ", " << *(sym->name) << ", " << sym->type << ", " << size << std::endl;
+                        as.instruct(*(scope->name), "mov " + get_word(size) + " [rbp" + std::to_string(sym->stack_m) + "], " + value);
+                    }
+                    else
+                        as.instruct(*(scope->name), "mov rax, " + value);
+                }
+            }
+            // BINARY OPERATORS
+            else if (value == "+")
+            {
+                if (current->next == nullptr) // incomplete math operation
+                {
+                    asc::err("incomplete statement", current->line);
+                    return false;
+                }
+                syntax_node* op2 = current->next;
             }
             else if (value == "(" && sym != nullptr) // marks function or function call
             {
@@ -201,7 +272,7 @@ namespace asc
                 }
                 else
                 {
-                    for (; current != nullptr; current = current->next)
+                    for (int i = 0; current != nullptr; current = current->next)
                     {
                         if (*(current->value) == ")")
                             break;
@@ -212,6 +283,7 @@ namespace asc
                             bool prim = is_primitive(*(current->value));
                             if (!prim)
                             {
+                                asc::err(*(current->value));
                                 asc::err("symbol has not been defined", current->line);
                                 return false;
                             }
@@ -221,6 +293,7 @@ namespace asc
                                 asc::err("identifier expected", current->line);
                                 return false;
                             }
+                            int size = get_type_size(type);
                             syntax_node*& param = current = current->next;
                             symbol*& s = symbols[*(param->value)];
                             if (s != nullptr)
@@ -229,6 +302,9 @@ namespace asc
                                 return false;
                             }
                             s = new symbol(*(param->value), type, sym);
+                            if (i < 4)
+                                as.instruct(*(sym->name), "mov " + get_word(size) + " [rbp + " + std::to_string((i * 8) + 16) + "], " + resolve_register(ARG_REGISTER_SEQUENCE[i], size));
+                            i++;
                         }
                         else
                         {
@@ -236,7 +312,8 @@ namespace asc
                             parse_expression(current = current->next, as, symbols, scope, sym, declaration);
                         }
                     }
-                    scope = sym; // move current scope into function
+                    if (declaration)
+                        scope = sym; // move current scope into function
                 }
             }
         }
@@ -275,8 +352,9 @@ namespace asc
         {
             
         }
-        */
+        
     }
+    */
 }
 
 #endif
