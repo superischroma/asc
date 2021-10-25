@@ -116,6 +116,13 @@ int main(int argc, char* argv[])
     asc::parser ps = asc::parser(tk.syntax_start());
     while (ps.parseable())
     {
+        std::cout << "token: " << *(ps.current->value) << std::endl;
+        asc::evaluation_state es_be = ps.eval_block_ending();
+        std::cout << "block ending: " << (int) es_be << std::endl;
+        if (es_be == asc::STATE_FOUND)
+            continue;
+        if (es_be == asc::STATE_SYNTAX_ERROR)
+            return -1;
         asc::evaluation_state es_fd = ps.eval_function_decl();
         std::cout << "function decl: " << (int) es_fd << std::endl;
         if (es_fd == asc::STATE_FOUND)
@@ -140,14 +147,23 @@ int main(int argc, char* argv[])
             continue;
         if (es_fc == asc::STATE_SYNTAX_ERROR)
             return -1;
+        /*
         asc::evaluation_state es_ex = ps.eval_expression();
         std::cout << "expression: " << (int) es_ex << std::endl;
         if (es_ex == asc::STATE_FOUND)
             continue;
         if (es_ex == asc::STATE_SYNTAX_ERROR)
             return -1;
+        */
         asc::err("unknown statement", ps.current->line);
         return -1;
+    }
+    std::cout << "symbols: " << std::endl;
+    for (std::pair<std::string, asc::symbol*> pair : ps.symbols)
+    {
+        if (pair.second == nullptr)
+            continue;
+        std::cout << pair.second->visibility << ' ' << pair.second->type << ' ' << *(pair.second->name) << " in scope " << (pair.second->scope != nullptr ? *(pair.second->scope->name) : "global") << std::endl;
     }
     asc::symbol*& entry = ps.symbols[ps.as.entry];
     if (entry == nullptr)

@@ -7,6 +7,8 @@
 
 namespace asc
 {
+    typedef std::string register_resolvable;
+
     const char* REGISTER_TABLE[] = {
         "rax", "eax", "ax", "al",
         "rbx", "ebx", "bx", "bl", 
@@ -30,7 +32,7 @@ namespace asc
         "rcx", "rdx", "r8", "r9"
     };
 
-    std::string resolve_register(std::string&& identifier, int size)
+    register_resolvable resolve_register(register_resolvable&& identifier, int size)
     {
         int lindex = -1;
         if (size == 1)

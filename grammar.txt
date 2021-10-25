@@ -9,4 +9,5 @@ expression :== <<numeric literal> | <identifier> | <function call> | (<expressio
 expression ending :== ; | , | )
 operator :== = | + | - | * | / | % | += | -= | *= | /= | %=
 function call :== <identifier>([expression]...)
+block ending :== }
 return statement :== return <expression>

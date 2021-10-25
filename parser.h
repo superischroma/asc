@@ -2,6 +2,7 @@
 #define PARSER_H
 
 #include <map>
+#include <stack>
 
 #include "syntax.h"
 #include "assembler.h"
@@ -22,24 +23,9 @@ namespace asc
         assembler as; // constructor for assembly code
         std::map<std::string, symbol*> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
-        /*
-        symbol* csymbol; // symbol being evaluated for, if any
-        // options
-        bool declaration; // whether the symbol evaluation is for declaration or another purpose (calling a function or reassigning a variable)
-        char visibility; // the visibility for the symbol being evaluated (public, private, protected)
-        char oper; // the current operator being worked on for an expression
-        std::string type; // the type of the symbol being evaluated
-        */
         parser(syntax_node* root)
         {
             this->current = root;
-            /*
-            this->scope = nullptr;
-            this->csymbol = nullptr;
-            this->declaration = false;
-            this->visibility = -1;
-            this->oper = -1;
-            */
         }
 
         bool parseable()
@@ -49,9 +35,10 @@ namespace asc
 
         bool check_eof(syntax_node* node, bool silence = false)
         {
-            if (node == nullptr && !silence)
+            if (node == nullptr)
             {
-                asc::err("unexpected end of file");
+                if (!silence)
+                    asc::err("unexpected end of file");
                 return true;
             }
             return false;
@@ -66,6 +53,7 @@ namespace asc
 
         evaluation_state eval_type()
         {
+            syntax_node* current = this->current;
             return eval_type(current);
         }
 
@@ -78,6 +66,7 @@ namespace asc
 
         evaluation_state eval_visibility()
         {
+            syntax_node* current = this->current;
             return eval_visibility(current);
         }
 
@@ -90,6 +79,7 @@ namespace asc
 
         evaluation_state eval_numeric_literal()
         {
+            syntax_node* current = this->current;
             return eval_numeric_literal(current);
         }
 
@@ -103,6 +93,7 @@ namespace asc
 
         evaluation_state eval_exp_ending()
         {
+            syntax_node* current = this->current;
             return eval_exp_ending(current);
         }
 
@@ -115,6 +106,7 @@ namespace asc
 
         evaluation_state eval_operator()
         {
+            syntax_node* current = this->current;
             return eval_operator(current);
         }
 
@@ -129,7 +121,8 @@ namespace asc
                 v = *(lcurrent->value);
             if (v_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
-            if (v_state == STATE_NEUTRAL)
+            std::cout << 'v' << std::endl;
+            if (v_state != STATE_NEUTRAL)
             {
                 lcurrent = lcurrent->next;
                 if (check_eof(lcurrent, true))
@@ -140,12 +133,14 @@ namespace asc
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
             std::string& t = *(lcurrent->value);
+            std::cout << 't' << std::endl;
             // at this point, it could still be a variable definition/declaration, so let's continue
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent, true))
                 return STATE_NEUTRAL;
             int i_line = lcurrent->line;
             std::string& identifier = *(lcurrent->value); // get the identifier that MIGHT be there
+            std::cout << 'i' << std::endl;
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent, true))
                 return STATE_NEUTRAL;
@@ -164,6 +159,7 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             function_symbol = new asc::symbol(identifier, t, v, scope);
+            std::cout << "defined " << t << ' ' << identifier << " as a function" << std::endl;
             for (int c = 1; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
             {
                 lcurrent = lcurrent->next; // first, the argument type
@@ -192,7 +188,8 @@ namespace asc
                     asc::err("symbol is already defined", ai_line);
                     return STATE_SYNTAX_ERROR;
                 }
-                a_symbol = new asc::symbol(a_identifier, at, "", function_symbol);
+                a_symbol = new asc::symbol(a_identifier, at, "public", function_symbol);
+                std::cout << "defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
                 lcurrent = lcurrent->next; // lastly, what's next?
                 if (check_eof(lcurrent))
                     return STATE_SYNTAX_ERROR;
@@ -223,6 +220,7 @@ namespace asc
 
         evaluation_state eval_function_decl()
         {
+            syntax_node* current = this->current;
             return eval_function_decl(current);
         }
 
@@ -261,11 +259,32 @@ namespace asc
                 current = lcurrent;
                 return STATE_FOUND;
             }
-            while (lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND)
+            as.instruct(*(scope->name), "push rcx"); // make sure none of these values
+            as.instruct(*(scope->name), "push rdx"); // are modified during argument passing
+            as.instruct(*(scope->name), "push r8");
+            as.instruct(*(scope->name), "push r9");
+            std::string surplus_arg_instructions;
+            for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND; i++)
             {
-                if (eval_expression(lcurrent) == STATE_SYNTAX_ERROR)
+                as.instruct(*(scope->name), "push rax"); // preserve rax value (in case anything's in there)
+                evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg
+                if (ev_ex == STATE_SYNTAX_ERROR)
                     return STATE_SYNTAX_ERROR;
+                if (ev_ex == STATE_NEUTRAL)
+                {
+                    asc::err("expected expression", lcurrent->line);
+                    return STATE_SYNTAX_ERROR;
+                }
+                if (i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]))
+                    as.instruct(*(scope->name), "mov " + std::string(ARG_REGISTER_SEQUENCE[i]) + ", rax");
+                else
+                    surplus_arg_instructions = std::string(surplus_arg_instructions.length() != 0 ? "\n" : "") + "push ";
+                as.instruct(*(scope->name), "pop rax"); // preserve rax value (in case anything's in there)
             }
+            as.instruct(*(scope->name), "pop r9"); // make sure none of these values
+            as.instruct(*(scope->name), "pop r8"); // are modified during argument passing
+            as.instruct(*(scope->name), "pop rdx");
+            as.instruct(*(scope->name), "pop rcx");
             if (lcurrent == nullptr) // unexpected end to arguments
             {
                 asc::err("unexpected end to argument passing", i_line);
@@ -278,6 +297,7 @@ namespace asc
 
         evaluation_state eval_function_call()
         {
+            syntax_node* current = this->current;
             return eval_function_call(current);
         }
 
@@ -292,7 +312,26 @@ namespace asc
 
         evaluation_state eval_ret()
         {
+            syntax_node* current = this->current;
             return eval_ret(current);
+        }
+
+        evaluation_state eval_block_ending(syntax_node*& lcurrent)
+        {
+            if (check_eof(lcurrent, true))
+                return STATE_NEUTRAL;
+            if (*(lcurrent->value) != "}") // not a function ending
+                return STATE_NEUTRAL;
+            scope = scope->scope; // scope out of function
+            lcurrent = lcurrent->next;
+            current = lcurrent;
+            return STATE_FOUND;
+        }
+
+        evaluation_state eval_block_ending()
+        {
+            syntax_node* current = this->current;
+            return eval_block_ending(current);
         }
 
         evaluation_state eval_variable_decl_def(syntax_node*& lcurrent)
@@ -301,12 +340,13 @@ namespace asc
                 return STATE_NEUTRAL;
             // errors will be thrown later on once we CONFIRM this is supposed to be a function declaration
             evaluation_state v_state = eval_visibility(lcurrent);
+            std::cout << "eval var dec def vis: " << *(lcurrent->value) << std::endl;
             std::string v = "public"; // default to public
             if (v_state == STATE_FOUND) // if a specifier was found, add it
                 v = *(lcurrent->value);
             if (v_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
-            if (v_state == STATE_NEUTRAL)
+            if (v_state != STATE_NEUTRAL)
             {
                 lcurrent = lcurrent->next;
                 if (check_eof(lcurrent, true))
@@ -317,7 +357,7 @@ namespace asc
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
             std::string& t = *(lcurrent->value);
-            if (t_state == STATE_NEUTRAL)
+            if (t_state != STATE_NEUTRAL)
             {
                 lcurrent = lcurrent->next;
                 if (check_eof(lcurrent, true))
@@ -325,6 +365,7 @@ namespace asc
             }
             int i_line = lcurrent->line;
             std::string& identifier = *(lcurrent->value); // get the identifier that MIGHT be there
+            std::cout << "var decl def: " << v << ' ' << t << ' ' << identifier << std::endl;
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent, true))
                 return STATE_NEUTRAL;
@@ -335,7 +376,6 @@ namespace asc
                 {
                     if (var_symbol == nullptr) // IT DOESN'T EVEN EXIST LOL
                     {
-                        std::cout << v << ", " << t << ", " << identifier << std::endl;
                         asc::err("symbol is not defined", lcurrent->line);
                         return STATE_SYNTAX_ERROR;
                     }
@@ -344,6 +384,9 @@ namespace asc
                     return STATE_FOUND;
                 }
                 var_symbol = new asc::symbol(identifier, t, v, scope); // define symbol
+                if (scope != nullptr) // if we're not in global scope
+                    var_symbol->stack_m = scope->stack_m -= asc::get_type_size(t); // set stack location
+                std::cout << "declared " << t << ' ' << identifier << " without definition" << std::endl;
                 lcurrent = lcurrent->next; // move it along after the semicolon
                 current = lcurrent; // and bring current up to speed
                 return STATE_FOUND;
@@ -353,10 +396,16 @@ namespace asc
             asc::symbol*& var_symbol = symbols[identifier];
             if (t_state == STATE_NEUTRAL && var_symbol == nullptr) // if attempting reassignment, but symbol doesn't exist
             {
-                asc::err("c");
                 asc::err("symbol is not defined", i_line);
                 return STATE_SYNTAX_ERROR;
             }
+            if (t_state != STATE_NEUTRAL)
+            {
+                var_symbol = new asc::symbol(identifier, t, v, scope);
+                if (scope != nullptr) // if we're not in global scope
+                    var_symbol->stack_m = scope->stack_m -= asc::get_type_size(t); // set stack location
+            }
+            std::cout << "declared " << t << ' ' << identifier << " with definition " << std::endl;
             lcurrent = lcurrent->next; // and now, expression evaluation
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
@@ -365,21 +414,34 @@ namespace asc
 
         evaluation_state eval_variable_decl_def()
         {
+            syntax_node* current = this->current;
             return eval_variable_decl_def(current);
         }
 
-        evaluation_state eval_expression(syntax_node*& lcurrent)
+        evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application)
         {
-            for (int p_level = 0; !check_eof(lcurrent, true); lcurrent = lcurrent->next)
+            std::string location = "rax"; // ambiguous expression evaluations will be stored in rax
+            if (application != nullptr) // if an application is provided, it will be stored at its stack location
+                location = "[rbp - " + std::to_string(application->stack_m) + "]";
+            std::string oper;
+            for (int p_level = 0; !check_eof(lcurrent, true);)
             {
                 if (*(lcurrent->value) == ")" && p_level > 0)
                 {
                     p_level--;
+                    lcurrent = lcurrent->next;
                     continue;
                 }
                 if (*(lcurrent->value) == "(")
                 {
                     p_level++;
+                    lcurrent = lcurrent->next;
+                    continue;
+                }
+                if (eval_operator(lcurrent) == STATE_FOUND) // found an operator
+                {
+                    oper = *(lcurrent->value);
+                    lcurrent = lcurrent->next;
                     continue;
                 }
                 if (eval_exp_ending(lcurrent) == STATE_FOUND)
@@ -388,17 +450,33 @@ namespace asc
                     current = lcurrent;
                     return STATE_FOUND;
                 }
-                if (eval_numeric_literal(lcurrent) == STATE_FOUND)
+                if (eval_numeric_literal(lcurrent) == STATE_FOUND) // found a number literal
                 {
+                    std::string word = application != nullptr ?
+                            asc::get_word(asc::get_type_size(application->type)) :
+                            "dword";
+                    if (oper == "+")
+                            as.instruct(*(scope->name), "add " + word + ' ' + location + ", " + *(lcurrent->value));
+                    if (oper == "-")
+                        as.instruct(*(scope->name), "sub " + word + ' ' + location + ", " + *(lcurrent->value));
+                    else
+                        as.instruct(*(scope->name), "mov " + word + ' ' + location + ", " + *(lcurrent->value));
+                    oper.clear(); // delete the operator
+                    lcurrent = lcurrent->next;
                     continue;
                 }
+                if (check_eof(lcurrent, true))
+                    break;
                 if (eval_function_call(lcurrent) == STATE_FOUND)
                 {
                     continue;
                 }
+                if (check_eof(lcurrent, true))
+                    break;
                 asc::symbol*& symbol = symbols[*(lcurrent->value)];
                 if (symbol != nullptr)
                 {
+                    lcurrent = lcurrent->next;
                     continue;
                 }
             }
@@ -407,6 +485,7 @@ namespace asc
 
         evaluation_state eval_expression()
         {
+            syntax_node* current = this->current;
             return eval_expression(current);
         }
 
