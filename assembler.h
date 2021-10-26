@@ -32,7 +32,7 @@ namespace asc
         "rcx", "rdx", "r8", "r9"
     };
 
-    register_resolvable resolve_register(register_resolvable&& identifier, int size)
+    register_resolvable resolve_register(register_resolvable& identifier, int size)
     {
         int lindex = -1;
         if (size == 1)
@@ -78,6 +78,11 @@ namespace asc
         if (identifier.find("r15") != std::string::npos)
             return REGISTER_TABLE[60 + lindex];
         return "-1";
+    }
+
+    register_resolvable resolve_register(register_resolvable&& identifier, int size)
+    {
+        return resolve_register(identifier, size);
     }
 
     class subroutine

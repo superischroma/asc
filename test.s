@@ -41,11 +41,17 @@ main:
 	call	__main
 	mov	DWORD PTR -4[rbp], 5
 	mov	QWORD PTR -16[rbp], 7
+	mov	DWORD PTR 32[rsp], 4
+	mov	r9d, 3
+	mov	r8d, 2
+	mov	edx, 1
+	mov	ecx, 0
+	call	k
 	mov	DWORD PTR 32[rsp], 1
 	mov	r9d, 0
 	mov	r8d, 0
 	mov	edx, 0
-	mov	ecx, 0
+	mov	ecx, eax
 	call	k
 	add	rsp, 64
 	pop	rbp

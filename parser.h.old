@@ -1,0 +1,304 @@
+        /*
+        bool parse_expression(symbol*& fsymbol)
+        {
+            for (; current != nullptr; current = current->next)
+            {
+                std::string& value = *(current->value);
+                std::cout << value << ": " << (int) declaration << ", " << (int) oper << ", " << type << std::endl;
+                if (value == ";" || value == "{" || value == "," || value == ")" || value.length() == 0) // if we reached the end of the expression
+                {
+                    current = current->next;
+                    fsymbol = nullptr;
+                    return true;
+                }
+                if (value == "}")
+                {
+                    if (!scope_out(fsymbol))
+                        return false;
+                    current = current->next;
+                    fsymbol = nullptr;
+                    return true;
+                }
+                if (value == "=")
+                {
+                    if (!parse_assignment(fsymbol))
+                        return false;
+                    continue;
+                }
+                char v = mark_visibility_specifier();
+                if (v == 0)
+                    return false;
+                if (v == 2)
+                    continue;
+                char t = mark_type_specifier();
+                if (t == 0)
+                    return false;
+                if (t == 2)
+                    continue;
+                if (mark_oper())
+                    continue;
+                if (value == "return")
+                {
+                    if (!parse_ret(fsymbol))
+                        return false;
+                    continue;
+                }
+                if (is_numerical(value)) // basic numerical checking for now
+                {
+                    if (!parse_constant(fsymbol))
+                        return false;
+                    continue;
+                }
+                if (value == "(" && fsymbol != nullptr) // marks function or function call
+                {
+                    if (!parse_function(fsymbol))
+                        return false;
+                    continue;
+                }
+                if (!eval_symbol(fsymbol))
+                    return false;
+            }
+            if (current == nullptr)
+            {
+                asc::err("unexpected end of expression");
+                return false;
+            }
+            fsymbol = nullptr;
+            return true;
+        }
+
+        bool parse_expression()
+        {
+            return parse_expression(csymbol);
+        }
+
+        bool parse_assignment(symbol*& fsymbol)
+        {
+            return true;
+        }
+
+        bool parse_constant(symbol*& fsymbol)
+        {
+            std::string& value = *(current->value);
+            if (scope == nullptr) // if we're in global scope
+            {
+                if (fsymbol == nullptr) // if we aren't parsing an expression for a symbol
+                {
+                    asc::err("stranded constant", current->line);
+                    return false;
+                }
+                asc::warn("global constants not allowed yet");
+            }
+            else
+            {
+                std::cout << "parsing constant for " << fsymbol << std::endl;
+                if (fsymbol != nullptr) // if this is not a standalone constant
+                {
+                    int size = get_type_size(fsymbol->type);
+                    std::string word = get_word(size);
+                    if (oper <= 0)
+                    {
+                        fsymbol->stack_m = scope->stack_m -= size; // store stack location for identifier and move down stack tracker for scope
+                        std::string loc = std::to_string(fsymbol->stack_m);
+                        if (fsymbol->stack_m >= 0)
+                            loc = '+' + loc;
+                        loc.insert(0, " ");
+                        loc.insert(2, " ");
+                        as.alloc_delta(*(scope->name), size);
+                        std::cout << "declaration: " << *(scope->name) << ", " << *(fsymbol->name) << ", " << fsymbol->type << ", " << size << std::endl;
+                        as.instruct(*(scope->name), "mov " + word + " [rbp" + loc + "], " + value);
+                    }
+                    else
+                    {
+                        std::string loc = std::to_string(fsymbol->stack_m);
+                        if (fsymbol->stack_m >= 0)
+                            loc = '+' + loc;
+                        loc.insert(0, " ");
+                        loc.insert(2, " ");
+                        if (oper == 1) // +
+                            as.instruct(*(scope->name), "add " + word + " [rbp" + loc + "], " + value);
+                        if (oper == 2) // -
+                            as.instruct(*(scope->name), "sub " + word + " [rbp" + loc + "], " + value);
+                        oper = -1;
+                    }
+                }
+                else
+                {
+                    if (oper <= 0)
+                        as.instruct(*(scope->name), "mov eax, " + value);
+                    else
+                    {
+                        if (oper == 1)
+                            as.instruct(*(scope->name), "add eax, " + value);
+                        if (oper == 2)
+                            as.instruct(*(scope->name), "sub eax, " + value);
+                        oper = -1;
+                    }
+                }
+            }
+            return true;
+        }
+
+        bool parse_function(symbol*& fsymbol)
+        {
+            if (current->next == nullptr) // incomplete function/function call
+            {
+                asc::err("incomplete statement", current->line);
+                return false;
+            }
+            current = current->next;
+            if (*(current->value) == ")" && !declaration) // if 0 args are present
+            {
+                as.instruct(*(scope->name), "call " + *(fsymbol->name)); // just call it
+                current = current->next;
+            }
+            else
+            {
+                for (int i = 0; current != nullptr; current = current->next)
+                {
+                    if (*(current->value) == ")")
+                        break;
+                    if (*(current->value) == ",")
+                        continue;
+                    if (declaration)
+                    {
+                        bool prim = is_primitive(*(current->value));
+                        if (!prim)
+                        {
+                            asc::err(*(current->value));
+                            asc::err("symbol has not been defined", current->line);
+                            return false;
+                        }
+                        std::string type = *(current->value);
+                        if (current->next == nullptr)
+                        {
+                            asc::err("identifier expected", current->line);
+                            return false;
+                        }
+                        int size = get_type_size(type);
+                        syntax_node*& param = current = current->next;
+                        symbol*& s = symbols[*(param->value)];
+                        if (s != nullptr)
+                        {
+                            asc::err("symbol has already been defined", current->line);
+                            return false;
+                        }
+                        s = new symbol(*(param->value), type, fsymbol);
+                        if (i < 4)
+                            as.instruct(*(fsymbol->name), "mov " + get_word(size) + " [rbp + " + std::to_string((i * 8) + 16) + "], " + resolve_register(ARG_REGISTER_SEQUENCE[i], size));
+                        i++;
+                    }
+                    else
+                    {
+                        asc::warn("uncompleted action made: calling non-0-arg function");
+                        parse_expression();
+                    }
+                }
+                if (declaration)
+                {
+                    std::cout << "scoped into " << *(fsymbol->name) << std::endl;
+                    scope = fsymbol; // move current scope into function
+                }
+            }
+            return true;
+        }
+
+        bool parse_ret(symbol*& fsymbol)
+        {
+            if (current->next == nullptr)
+            {
+                asc::err("semicolon or expression expected", current->line);
+                return false;
+            }
+            return true;
+        }
+
+        bool scope_out(symbol*& fsymbol)
+        {
+            if (scope == nullptr)
+            {
+                asc::err("attempt to scope out of global scope", current->line);
+                return false;
+            }
+            scope = scope->scope;
+            return true;
+        }
+
+        char mark_visibility_specifier()
+        {
+            char v_id = asc::get_visibility_id(*(current->value));
+            if (v_id != -1 && visibility != -1)
+            {
+                asc::err("visibility for this symbol has already been specified", current->line);
+                return 0;
+            }
+            if (v_id != -1)
+            {
+                visibility = v_id;
+                return 2;
+            }
+            return 1;
+        }
+
+        char mark_type_specifier()
+        {
+            bool prim = asc::is_primitive(*(current->value));
+            if (prim && type.length() != 0)
+            {
+                asc::err("type for this symbol has already been specified", current->line);
+                return 0;
+            }
+            if (prim)
+            {
+                type = *(current->value);
+                return 2;
+            }
+            return 1;
+        }
+
+        bool mark_oper()
+        {
+            char o_id = asc::get_operator_id(*(current->value));
+            if (o_id != -1)
+            {
+                oper = o_id;
+                return true;
+            }
+            return false;
+        }
+
+        bool eval_symbol(symbol*& fsymbol)
+        {
+            std::string& value = *(current->value);
+            asc::symbol*& symbol = symbols[value];
+            declaration = type.length() != 0;
+            if (symbol != nullptr && declaration) // it's either being used or being redefined
+            // check if a type has been specified for it (it's probably being redefined)
+            {
+                asc::err("symbol has already been defined", current->line);
+                return false;
+            }
+            if (symbol == nullptr && !declaration)
+            // check if no type has been specified and it's not defined
+            {
+                asc::err("symbol has not been defined", current->line);
+                return false;
+            }
+            if (visibility == -1) // if no visibility was specified for this member
+                visibility = 0; // make it public by default
+            if (declaration)
+            {
+                std::cout << "defined symbol " << value << " as type " << type << std::endl;
+                symbol = new asc::symbol(value, type, scope);
+            }
+            visibility = -1;
+            type.erase();
+            if (current->next == nullptr)
+            {
+                asc::err("semicolon or declaration expected", current->line);
+                return false;
+            }
+            fsymbol = symbol;
+            return true;
+        }
+        */

@@ -1,0 +1,16 @@
+function calling:
+ - preserve current stack frame
+ - reserve 32 bytes of shadow space
+ - put 4 first arguments in rcx, rdx, r8, r9, respectively (or xmm0, xmm1, xmm2, xmm3 for floating point arguments, interchangeably)
+ - push 5+ arguments on stack in reverse order
+ - call function
+ - restore stack from before function call
+ - do work with return value, rax or xmm0
+
+function:
+ - preserve current stack frame
+ - allocate space for local variables
+ - unload 4 first arguments into rbp + 16, 24, 32, 40
+ - do function body things......
+ - put return value in rax or xmm0
+ - restore stack from before function

@@ -17,6 +17,35 @@ namespace asc
 
     class parser
     {
+    private:
+        evaluation_state recur_func_stack_args(syntax_node*& lcurrent)
+        {
+            if (lcurrent == nullptr)
+            {
+                asc::err("unexpected end to argument passing");
+                return STATE_SYNTAX_ERROR;
+            }
+            if (*(lcurrent->value) == ")") // finished
+            {
+                lcurrent = lcurrent->next; // move lcurrent to its proper location
+                return STATE_FOUND;
+            }
+            evaluation_state es = recur_func_stack_args(lcurrent->next);
+            if (*(lcurrent->value) == ",")
+                return STATE_NEUTRAL;
+            if (es == STATE_SYNTAX_ERROR)
+                return STATE_SYNTAX_ERROR;
+            evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg and store in rax
+            if (ev_ex == STATE_SYNTAX_ERROR)
+                return STATE_SYNTAX_ERROR;
+            if (ev_ex == STATE_NEUTRAL)
+            {
+                asc::err("expected expression", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            as.instruct(*(scope->name), "push rax");
+            return es;
+        }
     public:
         // tracking variables
         syntax_node* current; // syntax token being evaluated
@@ -88,7 +117,7 @@ namespace asc
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
             std::string& value = *(lcurrent->value);
-            return value == ";" || value == ",";
+            return value == ";" || value == "," || value == ")";
         }
 
         evaluation_state eval_exp_ending()
@@ -133,6 +162,7 @@ namespace asc
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
             std::string& t = *(lcurrent->value);
+            int t_size = asc::get_type_size(t);
             std::cout << 't' << std::endl;
             // at this point, it could still be a variable definition/declaration, so let's continue
             lcurrent = lcurrent->next;
@@ -160,7 +190,7 @@ namespace asc
             }
             function_symbol = new asc::symbol(identifier, t, v, scope);
             std::cout << "defined " << t << ' ' << identifier << " as a function" << std::endl;
-            for (int c = 1; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
+            for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
             {
                 lcurrent = lcurrent->next; // first, the argument type
                 if (check_eof(lcurrent))
@@ -177,6 +207,7 @@ namespace asc
                     asc::err("type specifier expected for argument " + c, at_line);
                     return STATE_SYNTAX_ERROR;
                 }
+                int at_size = asc::get_type_size(at);
                 lcurrent = lcurrent->next; // second, the argument identifier
                 if (check_eof(lcurrent))
                     return STATE_SYNTAX_ERROR;
@@ -189,6 +220,9 @@ namespace asc
                     return STATE_SYNTAX_ERROR;
                 }
                 a_symbol = new asc::symbol(a_identifier, at, "public", function_symbol);
+                a_symbol->stack_m = s += 8;
+                if (c <= 4)
+                    as.instruct(*(function_symbol->name), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->stack_m) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
                 std::cout << "defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
                 lcurrent = lcurrent->next; // lastly, what's next?
                 if (check_eof(lcurrent))
@@ -245,6 +279,7 @@ namespace asc
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
+            /*
             if (*(lcurrent->value) == ")") // 0-arg function
             {
                 lcurrent = lcurrent->next;
@@ -259,15 +294,18 @@ namespace asc
                 current = lcurrent;
                 return STATE_FOUND;
             }
+            */
             as.instruct(*(scope->name), "push rcx"); // make sure none of these values
             as.instruct(*(scope->name), "push rdx"); // are modified during argument passing
             as.instruct(*(scope->name), "push r8");
             as.instruct(*(scope->name), "push r9");
-            std::string surplus_arg_instructions;
-            for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND; i++)
+
+            as.instruct(*(scope->name), "push rbp");
+            as.instruct(*(scope->name), "mov rbp, rsp"); // preserve current stack frame
+            as.instruct(*(scope->name), "sub rsp, 32"); // alloc 32 bytes of shadow space
+            for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND && i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]); i++)
             {
-                as.instruct(*(scope->name), "push rax"); // preserve rax value (in case anything's in there)
-                evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg
+                evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg and store in rax
                 if (ev_ex == STATE_SYNTAX_ERROR)
                     return STATE_SYNTAX_ERROR;
                 if (ev_ex == STATE_NEUTRAL)
@@ -275,12 +313,18 @@ namespace asc
                     asc::err("expected expression", lcurrent->line);
                     return STATE_SYNTAX_ERROR;
                 }
-                if (i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]))
-                    as.instruct(*(scope->name), "mov " + std::string(ARG_REGISTER_SEQUENCE[i]) + ", rax");
-                else
-                    surplus_arg_instructions = std::string(surplus_arg_instructions.length() != 0 ? "\n" : "") + "push ";
-                as.instruct(*(scope->name), "pop rax"); // preserve rax value (in case anything's in there)
+                as.instruct(*(scope->name), "mov " + std::string(ARG_REGISTER_SEQUENCE[i]) + ", rax");
             }
+            if (eval_exp_ending(lcurrent) != STATE_FOUND) // if there are still more arguments
+            {
+                if (recur_func_stack_args(lcurrent) == STATE_SYNTAX_ERROR) // iterate through stack args and push them
+                    return STATE_SYNTAX_ERROR;
+            }
+            as.instruct(*(scope->name), "call " + identifier); // call the function
+
+            as.instruct(*(scope->name), "mov rsp, rbp"); // restore the stack to its original state
+            as.instruct(*(scope->name), "pop rbp");
+
             as.instruct(*(scope->name), "pop r9"); // make sure none of these values
             as.instruct(*(scope->name), "pop r8"); // are modified during argument passing
             as.instruct(*(scope->name), "pop rdx");
@@ -292,6 +336,11 @@ namespace asc
             }
             lcurrent = lcurrent->next; // move past semicolon
             current = lcurrent;
+            if (lcurrent != nullptr && *(lcurrent->value) == ";")
+            {
+                lcurrent = lcurrent->next; // move past semicolon
+                current = lcurrent;
+            }
             return STATE_FOUND;
         }
 
@@ -307,7 +356,7 @@ namespace asc
                 return STATE_NEUTRAL;
             if (*(lcurrent->value) != "return") // not a return statement
                 return STATE_NEUTRAL;
-            return eval_expression(lcurrent = lcurrent->next);
+            return eval_expression(lcurrent = lcurrent->next, nullptr);
         }
 
         evaluation_state eval_ret()
@@ -357,6 +406,7 @@ namespace asc
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
             std::string& t = *(lcurrent->value);
+            int t_size = asc::get_type_size(t);
             if (t_state != STATE_NEUTRAL)
             {
                 lcurrent = lcurrent->next;
@@ -385,7 +435,10 @@ namespace asc
                 }
                 var_symbol = new asc::symbol(identifier, t, v, scope); // define symbol
                 if (scope != nullptr) // if we're not in global scope
-                    var_symbol->stack_m = scope->stack_m -= asc::get_type_size(t); // set stack location
+                {
+                    as.alloc_delta(*(scope->name), t_size);
+                    var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
+                }
                 std::cout << "declared " << t << ' ' << identifier << " without definition" << std::endl;
                 lcurrent = lcurrent->next; // move it along after the semicolon
                 current = lcurrent; // and bring current up to speed
@@ -403,13 +456,16 @@ namespace asc
             {
                 var_symbol = new asc::symbol(identifier, t, v, scope);
                 if (scope != nullptr) // if we're not in global scope
-                    var_symbol->stack_m = scope->stack_m -= asc::get_type_size(t); // set stack location
+                {
+                    as.alloc_delta(*(scope->name), t_size);
+                    var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
+                }
             }
             std::cout << "declared " << t << ' ' << identifier << " with definition " << std::endl;
             lcurrent = lcurrent->next; // and now, expression evaluation
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
-            return eval_expression(lcurrent);
+            return eval_expression(lcurrent, var_symbol);
         }
 
         evaluation_state eval_variable_decl_def()
@@ -422,7 +478,7 @@ namespace asc
         {
             std::string location = "rax"; // ambiguous expression evaluations will be stored in rax
             if (application != nullptr) // if an application is provided, it will be stored at its stack location
-                location = "[rbp - " + std::to_string(application->stack_m) + "]";
+                location = "[rbp + " + std::to_string(application->stack_m) + "]";
             std::string oper;
             for (int p_level = 0; !check_eof(lcurrent, true);)
             {
@@ -453,22 +509,16 @@ namespace asc
                 if (eval_numeric_literal(lcurrent) == STATE_FOUND) // found a number literal
                 {
                     std::string word = application != nullptr ?
-                            asc::get_word(asc::get_type_size(application->type)) :
-                            "dword";
+                            asc::get_word(asc::get_type_size(application->type)) + ' ' :
+                            "";
                     if (oper == "+")
-                            as.instruct(*(scope->name), "add " + word + ' ' + location + ", " + *(lcurrent->value));
-                    if (oper == "-")
-                        as.instruct(*(scope->name), "sub " + word + ' ' + location + ", " + *(lcurrent->value));
+                        as.instruct(*(scope->name), "add " + word + location + ", " + *(lcurrent->value));
+                    else if (oper == "-")
+                        as.instruct(*(scope->name), "sub " + word + location + ", " + *(lcurrent->value));
                     else
-                        as.instruct(*(scope->name), "mov " + word + ' ' + location + ", " + *(lcurrent->value));
+                        as.instruct(*(scope->name), "mov " + word + location + ", " + *(lcurrent->value));
                     oper.clear(); // delete the operator
                     lcurrent = lcurrent->next;
-                    continue;
-                }
-                if (check_eof(lcurrent, true))
-                    break;
-                if (eval_function_call(lcurrent) == STATE_FOUND)
-                {
                     continue;
                 }
                 if (check_eof(lcurrent, true))
@@ -476,9 +526,47 @@ namespace asc
                 asc::symbol*& symbol = symbols[*(lcurrent->value)];
                 if (symbol != nullptr)
                 {
+                    std::string symbol_loc = "[rbp + " + std::to_string(symbol->stack_m) + "]";
+                    std::string res = asc::resolve_register(location, asc::get_type_size(symbol->type));
+                    std::string word = asc::get_word(asc::get_type_size(symbol->type));
+                    if (res != "-1")
+                        location = res;
+                    if (oper == "+")
+                        as.instruct(*(scope->name), "add " + location + ", " + word + ' ' + symbol_loc);
+                    else if (oper == "-")
+                        as.instruct(*(scope->name), "sub " + location + ", " + word + ' ' + symbol_loc);
+                    else
+                        as.instruct(*(scope->name), "mov " + location + ", " + word + ' ' + symbol_loc);
                     lcurrent = lcurrent->next;
                     continue;
                 }
+                if (check_eof(lcurrent, true))
+                    break;
+                if (application == nullptr)
+                    as.instruct(*(scope->name), "push " + location); // preserve value in rax so a possible function call doesn't overwrite it
+                if (eval_function_call(lcurrent) == STATE_FOUND)
+                {
+                    std::string word = application != nullptr ?
+                            asc::get_word(asc::get_type_size(application->type)) + ' ' :
+                            "";
+                    if (application == nullptr)
+                    {
+                        as.instruct(*(scope->name), "mov rbx, rax"); // move function return value into rbx
+                        as.instruct(*(scope->name), "pop " + location); // restore value
+                    }
+                    std::string ret_val_reg = application != nullptr ? "rax" : "rbx";
+                    if (oper == "+")
+                        as.instruct(*(scope->name), "add " + word + location + ", " + ret_val_reg);
+                    else if (oper == "-")
+                        as.instruct(*(scope->name), "sub " + word + location + ", " + ret_val_reg);
+                    else
+                        as.instruct(*(scope->name), "mov " + word + location + ", " + ret_val_reg);
+                    oper.clear(); // delete the operator
+                    lcurrent = lcurrent->next;
+                    continue;
+                }
+                if (application == nullptr)
+                    as.instruct(*(scope->name), "pop " + location); // preserve value in rax so a possible function call doesn't overwrite it
             }
             return STATE_NEUTRAL;
         }
@@ -486,313 +574,8 @@ namespace asc
         evaluation_state eval_expression()
         {
             syntax_node* current = this->current;
-            return eval_expression(current);
+            return eval_expression(current, nullptr);
         }
-
-        /*
-        bool parse_expression(symbol*& fsymbol)
-        {
-            for (; current != nullptr; current = current->next)
-            {
-                std::string& value = *(current->value);
-                std::cout << value << ": " << (int) declaration << ", " << (int) oper << ", " << type << std::endl;
-                if (value == ";" || value == "{" || value == "," || value == ")" || value.length() == 0) // if we reached the end of the expression
-                {
-                    current = current->next;
-                    fsymbol = nullptr;
-                    return true;
-                }
-                if (value == "}")
-                {
-                    if (!scope_out(fsymbol))
-                        return false;
-                    current = current->next;
-                    fsymbol = nullptr;
-                    return true;
-                }
-                if (value == "=")
-                {
-                    if (!parse_assignment(fsymbol))
-                        return false;
-                    continue;
-                }
-                char v = mark_visibility_specifier();
-                if (v == 0)
-                    return false;
-                if (v == 2)
-                    continue;
-                char t = mark_type_specifier();
-                if (t == 0)
-                    return false;
-                if (t == 2)
-                    continue;
-                if (mark_oper())
-                    continue;
-                if (value == "return")
-                {
-                    if (!parse_ret(fsymbol))
-                        return false;
-                    continue;
-                }
-                if (is_numerical(value)) // basic numerical checking for now
-                {
-                    if (!parse_constant(fsymbol))
-                        return false;
-                    continue;
-                }
-                if (value == "(" && fsymbol != nullptr) // marks function or function call
-                {
-                    if (!parse_function(fsymbol))
-                        return false;
-                    continue;
-                }
-                if (!eval_symbol(fsymbol))
-                    return false;
-            }
-            if (current == nullptr)
-            {
-                asc::err("unexpected end of expression");
-                return false;
-            }
-            fsymbol = nullptr;
-            return true;
-        }
-
-        bool parse_expression()
-        {
-            return parse_expression(csymbol);
-        }
-
-        bool parse_assignment(symbol*& fsymbol)
-        {
-            return true;
-        }
-
-        bool parse_constant(symbol*& fsymbol)
-        {
-            std::string& value = *(current->value);
-            if (scope == nullptr) // if we're in global scope
-            {
-                if (fsymbol == nullptr) // if we aren't parsing an expression for a symbol
-                {
-                    asc::err("stranded constant", current->line);
-                    return false;
-                }
-                asc::warn("global constants not allowed yet");
-            }
-            else
-            {
-                std::cout << "parsing constant for " << fsymbol << std::endl;
-                if (fsymbol != nullptr) // if this is not a standalone constant
-                {
-                    int size = get_type_size(fsymbol->type);
-                    std::string word = get_word(size);
-                    if (oper <= 0)
-                    {
-                        fsymbol->stack_m = scope->stack_m -= size; // store stack location for identifier and move down stack tracker for scope
-                        std::string loc = std::to_string(fsymbol->stack_m);
-                        if (fsymbol->stack_m >= 0)
-                            loc = '+' + loc;
-                        loc.insert(0, " ");
-                        loc.insert(2, " ");
-                        as.alloc_delta(*(scope->name), size);
-                        std::cout << "declaration: " << *(scope->name) << ", " << *(fsymbol->name) << ", " << fsymbol->type << ", " << size << std::endl;
-                        as.instruct(*(scope->name), "mov " + word + " [rbp" + loc + "], " + value);
-                    }
-                    else
-                    {
-                        std::string loc = std::to_string(fsymbol->stack_m);
-                        if (fsymbol->stack_m >= 0)
-                            loc = '+' + loc;
-                        loc.insert(0, " ");
-                        loc.insert(2, " ");
-                        if (oper == 1) // +
-                            as.instruct(*(scope->name), "add " + word + " [rbp" + loc + "], " + value);
-                        if (oper == 2) // -
-                            as.instruct(*(scope->name), "sub " + word + " [rbp" + loc + "], " + value);
-                        oper = -1;
-                    }
-                }
-                else
-                {
-                    if (oper <= 0)
-                        as.instruct(*(scope->name), "mov eax, " + value);
-                    else
-                    {
-                        if (oper == 1)
-                            as.instruct(*(scope->name), "add eax, " + value);
-                        if (oper == 2)
-                            as.instruct(*(scope->name), "sub eax, " + value);
-                        oper = -1;
-                    }
-                }
-            }
-            return true;
-        }
-
-        bool parse_function(symbol*& fsymbol)
-        {
-            if (current->next == nullptr) // incomplete function/function call
-            {
-                asc::err("incomplete statement", current->line);
-                return false;
-            }
-            current = current->next;
-            if (*(current->value) == ")" && !declaration) // if 0 args are present
-            {
-                as.instruct(*(scope->name), "call " + *(fsymbol->name)); // just call it
-                current = current->next;
-            }
-            else
-            {
-                for (int i = 0; current != nullptr; current = current->next)
-                {
-                    if (*(current->value) == ")")
-                        break;
-                    if (*(current->value) == ",")
-                        continue;
-                    if (declaration)
-                    {
-                        bool prim = is_primitive(*(current->value));
-                        if (!prim)
-                        {
-                            asc::err(*(current->value));
-                            asc::err("symbol has not been defined", current->line);
-                            return false;
-                        }
-                        std::string type = *(current->value);
-                        if (current->next == nullptr)
-                        {
-                            asc::err("identifier expected", current->line);
-                            return false;
-                        }
-                        int size = get_type_size(type);
-                        syntax_node*& param = current = current->next;
-                        symbol*& s = symbols[*(param->value)];
-                        if (s != nullptr)
-                        {
-                            asc::err("symbol has already been defined", current->line);
-                            return false;
-                        }
-                        s = new symbol(*(param->value), type, fsymbol);
-                        if (i < 4)
-                            as.instruct(*(fsymbol->name), "mov " + get_word(size) + " [rbp + " + std::to_string((i * 8) + 16) + "], " + resolve_register(ARG_REGISTER_SEQUENCE[i], size));
-                        i++;
-                    }
-                    else
-                    {
-                        asc::warn("uncompleted action made: calling non-0-arg function");
-                        parse_expression();
-                    }
-                }
-                if (declaration)
-                {
-                    std::cout << "scoped into " << *(fsymbol->name) << std::endl;
-                    scope = fsymbol; // move current scope into function
-                }
-            }
-            return true;
-        }
-
-        bool parse_ret(symbol*& fsymbol)
-        {
-            if (current->next == nullptr)
-            {
-                asc::err("semicolon or expression expected", current->line);
-                return false;
-            }
-            return true;
-        }
-
-        bool scope_out(symbol*& fsymbol)
-        {
-            if (scope == nullptr)
-            {
-                asc::err("attempt to scope out of global scope", current->line);
-                return false;
-            }
-            scope = scope->scope;
-            return true;
-        }
-
-        char mark_visibility_specifier()
-        {
-            char v_id = asc::get_visibility_id(*(current->value));
-            if (v_id != -1 && visibility != -1)
-            {
-                asc::err("visibility for this symbol has already been specified", current->line);
-                return 0;
-            }
-            if (v_id != -1)
-            {
-                visibility = v_id;
-                return 2;
-            }
-            return 1;
-        }
-
-        char mark_type_specifier()
-        {
-            bool prim = asc::is_primitive(*(current->value));
-            if (prim && type.length() != 0)
-            {
-                asc::err("type for this symbol has already been specified", current->line);
-                return 0;
-            }
-            if (prim)
-            {
-                type = *(current->value);
-                return 2;
-            }
-            return 1;
-        }
-
-        bool mark_oper()
-        {
-            char o_id = asc::get_operator_id(*(current->value));
-            if (o_id != -1)
-            {
-                oper = o_id;
-                return true;
-            }
-            return false;
-        }
-
-        bool eval_symbol(symbol*& fsymbol)
-        {
-            std::string& value = *(current->value);
-            asc::symbol*& symbol = symbols[value];
-            declaration = type.length() != 0;
-            if (symbol != nullptr && declaration) // it's either being used or being redefined
-            // check if a type has been specified for it (it's probably being redefined)
-            {
-                asc::err("symbol has already been defined", current->line);
-                return false;
-            }
-            if (symbol == nullptr && !declaration)
-            // check if no type has been specified and it's not defined
-            {
-                asc::err("symbol has not been defined", current->line);
-                return false;
-            }
-            if (visibility == -1) // if no visibility was specified for this member
-                visibility = 0; // make it public by default
-            if (declaration)
-            {
-                std::cout << "defined symbol " << value << " as type " << type << std::endl;
-                symbol = new asc::symbol(value, type, scope);
-            }
-            visibility = -1;
-            type.erase();
-            if (current->next == nullptr)
-            {
-                asc::err("semicolon or declaration expected", current->line);
-                return false;
-            }
-            fsymbol = symbol;
-            return true;
-        }
-        */
     };
 }
 

@@ -13,5 +13,5 @@ int main()
     int i;
     i = 5;
     long j = 3 + 4;
-    return k(0, 0, 0, 0, 1);
+    return k(k(0, 1, 2, 3, 4), 0, 0, 0, 1);
 }

@@ -53,6 +53,7 @@
         "optional": "cpp",
         "string_view": "cpp",
         "sstream": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "stack": "cpp"
     }
 }
