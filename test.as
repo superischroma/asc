@@ -17,6 +17,6 @@ public int main()
     int i;
     i = 5;
     long j = 3 + 4 - 6;
-    k(i, j, 7 + i, 8 + 8, i + j);
+    j = j + nothing(i);
     return 5 - 5;
 }

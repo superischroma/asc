@@ -18,23 +18,20 @@ namespace asc
     class parser
     {
     private:
-        evaluation_state recur_func_stack_args(syntax_node*& lcurrent)
+        evaluation_state recur_func_stack_args(syntax_node*& lcurrent, bool exp)
         {
             if (lcurrent == nullptr)
             {
                 asc::err("unexpected end to argument passing");
                 return STATE_SYNTAX_ERROR;
             }
-            if (*(lcurrent->value) == ")") // finished
-            {
-                lcurrent = lcurrent->next; // move lcurrent to its proper location
+            if (*(lcurrent->value) == ";") // finished
                 return STATE_FOUND;
-            }
-            evaluation_state es = recur_func_stack_args(lcurrent->next);
-            if (*(lcurrent->value) == ",")
-                return STATE_NEUTRAL;
+            evaluation_state es = recur_func_stack_args(lcurrent->next, *(lcurrent->value) == ",");
             if (es == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
+            if (!exp)
+                return STATE_NEUTRAL;
             evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg and store in rax
             if (ev_ex == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
@@ -317,7 +314,7 @@ namespace asc
             }
             if (eval_exp_ending(lcurrent) != STATE_FOUND) // if there are still more arguments
             {
-                if (recur_func_stack_args(lcurrent) == STATE_SYNTAX_ERROR) // iterate through stack args and push them
+                if (recur_func_stack_args(lcurrent, true) == STATE_SYNTAX_ERROR) // iterate through stack args and push them
                     return STATE_SYNTAX_ERROR;
             }
             as.instruct(*(scope->name), "call " + identifier); // call the function
@@ -334,12 +331,15 @@ namespace asc
                 asc::err("unexpected end to argument passing", i_line);
                 return STATE_SYNTAX_ERROR;
             }
+            std::cout << "from: " << *(lcurrent->value) << std::endl;
             lcurrent = lcurrent->next; // move past semicolon
             current = lcurrent;
             if (lcurrent != nullptr && *(lcurrent->value) == ";")
             {
+                std::cout << "to: " << *(lcurrent->value) << std::endl;
                 lcurrent = lcurrent->next; // move past semicolon
                 current = lcurrent;
+                std::cout << "to x2: " << *(lcurrent->value) << std::endl;
             }
             return STATE_FOUND;
         }
@@ -537,6 +537,7 @@ namespace asc
                         as.instruct(*(scope->name), "sub " + location + ", " + word + ' ' + symbol_loc);
                     else
                         as.instruct(*(scope->name), "mov " + location + ", " + word + ' ' + symbol_loc);
+                    oper.clear();
                     lcurrent = lcurrent->next;
                     continue;
                 }

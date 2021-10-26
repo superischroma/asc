@@ -23,30 +23,9 @@ main:
 	mov qword [rbp + -12], 3
 	add qword [rbp + -12], 4
 	sub qword [rbp + -12], 6
-	push rcx
-	push rdx
-	push r8
-	push r9
-	push rbp
-	mov rbp, rsp
-	sub rsp, 32
-	mov eax, dword [rbp + -4]
-	mov rcx, rax
-	mov rax, qword [rbp + -12]
-	mov rdx, rax
-	mov rax, 7
-	add eax, dword [rbp + -4]
-	mov r8, rax
-	mov rax, 8
-	add rax, 8
-	mov r9, rax
-	call k
-	mov rsp, rbp
-	pop rbp
-	pop r9
-	pop r8
-	pop rdx
-	pop rcx
+	mov rbx, qword [rbp + -12]
+	add rbx, -1 [rbp + 0]
+	mov ebx, dword [rbp + -4]
 	mov rax, 5
 	sub rax, 5
 	add rsp, 12
