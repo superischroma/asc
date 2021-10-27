@@ -152,6 +152,7 @@ namespace asc
             if (sr == nullptr)
                 sr = new asc::subroutine(functional);
             sr->instructions += "\n\t" + instruction;
+            std::cout << "added \"" << instruction << "\" to " << subroutine << std::endl;
             return *this;
         }
 
