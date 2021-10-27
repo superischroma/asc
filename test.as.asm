@@ -35,7 +35,11 @@ nothing:
 	push rbp
 	mov rbp, rsp
 	mov dword [rbp + 16], ecx
+	push rax
+	pop rax
 	mov eax, dword [rbp + 16]
+	push eax
+	pop eax
 	add eax, dword [rbp + 16]
 	pop rbp
 	ret
