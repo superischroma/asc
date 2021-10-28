@@ -18,5 +18,9 @@ public int main()
     i = 5;
     long j = 3 + 4 - 6;
     j = nothing(nothing(j)) + nothing(i);
+    if (i)
+    {
+        i = 8;
+    }
     return 5 - nothing(5);
 }

@@ -48,6 +48,12 @@ int main(int argc, char* argv[])
             continue;
         if (es_r == asc::STATE_SYNTAX_ERROR)
             return -1;
+        asc::evaluation_state es_if = ps.eval_if();
+        std::cout << "if: " << (int) es_if << std::endl;
+        if (es_if == asc::STATE_FOUND)
+            continue;
+        if (es_r == asc::STATE_SYNTAX_ERROR)
+            return -1;
         asc::evaluation_state es_fc = ps.eval_function_call();
         std::cout << "function call: " << (int) es_fc << std::endl;
         if (es_fc == asc::STATE_FOUND)
@@ -65,7 +71,7 @@ int main(int argc, char* argv[])
     {
         if (pair.second == nullptr)
             continue;
-        std::cout << pair.second->visibility << ' ' << pair.second->type << ' ' << *(pair.second->name) << " in scope " << (pair.second->scope != nullptr ? *(pair.second->scope->name) : "global") << std::endl;
+        std::cout << pair.second->visibility << ' ' << pair.second->type << ' ' << pair.second->name() << " in scope " << (pair.second->scope != nullptr ? pair.second->scope->name() : "global") << std::endl;
     }
     asc::symbol*& entry = ps.symbols[ps.as.entry];
     if (entry == nullptr)

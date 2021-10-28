@@ -41,7 +41,7 @@ namespace asc
                 asc::err("expected expression", lcurrent->line);
                 return STATE_SYNTAX_ERROR;
             }
-            as.instruct(*(scope->name), "push rax");
+            as.instruct(scope->name(), "push rax");
             return es;
         }
     public:
@@ -50,9 +50,11 @@ namespace asc
         assembler as; // constructor for assembly code
         std::map<std::string, symbol*> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
+        int branchc; // counter for branches
         parser(syntax_node* root)
         {
             this->current = root;
+            this->branchc = 0;
         }
 
         bool parseable()
@@ -222,7 +224,7 @@ namespace asc
                 a_symbol = new asc::symbol(a_identifier, at, "public", function_symbol);
                 a_symbol->stack_m = s += 8;
                 if (c <= 4)
-                    as.instruct(*(function_symbol->name), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->stack_m) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
+                    as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->stack_m) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
                 //std::cout << "defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
                 lcurrent = lcurrent->next; // lastly, what's next?
                 if (check_eof(lcurrent))
@@ -280,14 +282,14 @@ namespace asc
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
-            as.instruct(*(scope->name), "push rcx"); // make sure none of these values
-            as.instruct(*(scope->name), "push rdx"); // are modified during argument passing
-            as.instruct(*(scope->name), "push r8");
-            as.instruct(*(scope->name), "push r9");
+            as.instruct(scope->name(), "push rcx"); // make sure none of these values
+            as.instruct(scope->name(), "push rdx"); // are modified during argument passing
+            as.instruct(scope->name(), "push r8");
+            as.instruct(scope->name(), "push r9");
 
-            as.instruct(*(scope->name), "push rbp");
-            as.instruct(*(scope->name), "mov rbp, rsp"); // preserve current stack frame
-            as.instruct(*(scope->name), "sub rsp, 32"); // alloc 32 bytes of shadow space
+            as.instruct(scope->name(), "push rbp");
+            as.instruct(scope->name(), "mov rbp, rsp"); // preserve current stack frame
+            as.instruct(scope->name(), "sub rsp, 32"); // alloc 32 bytes of shadow space
             for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND && i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]); i++)
             {
                 std::cout << "expression eval for argument variable" << std::endl;
@@ -299,22 +301,22 @@ namespace asc
                     asc::err("expected expression", lcurrent->line);
                     return STATE_SYNTAX_ERROR;
                 }
-                as.instruct(*(scope->name), "mov " + std::string(ARG_REGISTER_SEQUENCE[i]) + ", rax");
+                as.instruct(scope->name(), "mov " + std::string(ARG_REGISTER_SEQUENCE[i]) + ", rax");
             }
             if (eval_exp_ending(lcurrent) != STATE_FOUND) // if there are still more arguments
             {
                 if (recur_func_stack_args(lcurrent, true) == STATE_SYNTAX_ERROR) // iterate through stack args and push them
                     return STATE_SYNTAX_ERROR;
             }
-            as.instruct(*(scope->name), "call " + identifier); // call the function
+            as.instruct(scope->name(), "call " + identifier); // call the function
 
-            as.instruct(*(scope->name), "mov rsp, rbp"); // restore the stack to its original state
-            as.instruct(*(scope->name), "pop rbp");
+            as.instruct(scope->name(), "mov rsp, rbp"); // restore the stack to its original state
+            as.instruct(scope->name(), "pop rbp");
 
-            as.instruct(*(scope->name), "pop r9"); // make sure none of these values
-            as.instruct(*(scope->name), "pop r8"); // are modified during argument passing
-            as.instruct(*(scope->name), "pop rdx");
-            as.instruct(*(scope->name), "pop rcx");
+            as.instruct(scope->name(), "pop r9"); // make sure none of these values
+            as.instruct(scope->name(), "pop r8"); // are modified during argument passing
+            as.instruct(scope->name(), "pop rdx");
+            as.instruct(scope->name(), "pop rcx");
             if (lcurrent == nullptr) // unexpected end to arguments
             {
                 asc::err("unexpected end to argument passing", i_line);
@@ -347,6 +349,54 @@ namespace asc
         {
             syntax_node* current = this->current;
             return eval_ret(current);
+        }
+
+        evaluation_state eval_if(syntax_node*& lcurrent)
+        {
+            if (check_eof(lcurrent, true))
+                return STATE_NEUTRAL;
+            if (*(lcurrent->value) != "if") // not an if statement
+                return STATE_NEUTRAL;
+            lcurrent = lcurrent->next;
+            if (check_eof(lcurrent))
+                return STATE_SYNTAX_ERROR;
+            if (*(lcurrent->value) != "(")
+            {
+                asc::err("expected left parenthesis to start if statement");
+                return STATE_SYNTAX_ERROR;
+            }
+            evaluation_state ev_ex = eval_expression(lcurrent = lcurrent->next, nullptr);
+            if (ev_ex == STATE_SYNTAX_ERROR)
+                return STATE_SYNTAX_ERROR;
+            if (ev_ex == STATE_NEUTRAL) // if there was no expression found
+            {
+                asc::err("expression expected");
+                return STATE_SYNTAX_ERROR;
+            }
+            lcurrent = lcurrent->next; // move past left parenthesis
+            //// TODO: ALLOW FOR ONE LINE IF STATEMENTS
+            if (check_eof(lcurrent))
+                return STATE_SYNTAX_ERROR;
+            lcurrent = lcurrent->next; // move past left brace, and into the if statement
+            //// END TODO
+            std::string name = 'B' + std::to_string(++this->branchc);
+            as.instruct(scope->name(), "cmp rax, 0");
+            as.instruct(scope->name(), "jne " + name);
+            as.sr(name, false)->ending = "jmp B" + std::to_string(this->scope->split_b = ++this->branchc);
+            std::string sname = scope->name();
+            asc::subroutine*& sr = as.sr(sname);
+            sr->ending = "";
+            sr->functional = false;
+            this->scope = new asc::symbol(name, "if", "public", this->scope);
+            // move statement scope into the if statement
+            current = lcurrent; // bring current up to speed
+            return STATE_FOUND;
+        }
+
+        evaluation_state eval_if()
+        {
+            asc::syntax_node* current = this->current;
+            return eval_if(current);
         }
 
         evaluation_state eval_block_ending(syntax_node*& lcurrent)
@@ -422,7 +472,8 @@ namespace asc
                 var_symbol = new asc::symbol(identifier, t, v, scope); // define symbol
                 if (scope != nullptr) // if we're not in global scope
                 {
-                    as.alloc_delta(*(scope->name), t_size);
+                    std::string name = scope->name();
+                    as.sr(name)->alloc_delta(t_size);
                     var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
                 }
                 //std::cout << "declared " << t << ' ' << identifier << " without definition" << std::endl;
@@ -444,7 +495,8 @@ namespace asc
                 var_symbol = new asc::symbol(identifier, t, v, scope);
                 if (scope != nullptr) // if we're not in global scope
                 {
-                    as.alloc_delta(*(scope->name), t_size);
+                    std::string name = scope->name();
+                    as.sr(name)->alloc_delta(t_size);
                     var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
                 }
             }
@@ -452,7 +504,7 @@ namespace asc
             lcurrent = lcurrent->next; // and now, expression evaluation
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
-            std::cout << "expression eval for " << *(var_symbol->name) << " variable decl" << std::endl;
+            std::cout << "expression eval for " << var_symbol->name() << " variable decl" << std::endl;
             return eval_expression(lcurrent, var_symbol);
         }
 
@@ -469,7 +521,7 @@ namespace asc
                 location = "[rbp + " + std::to_string(application->stack_m) + "]";
             std::cout << "start of expression: ";
             if (application != nullptr)
-                std::cout << *(application->name) << ", ";
+                std::cout << application->name() << ", ";
             std::cout << *(lcurrent->value) << ", " << location << std::endl;
             std::string oper;
             for (int p_level = 0; !check_eof(lcurrent, true);)
@@ -512,11 +564,11 @@ namespace asc
                             asc::get_word(asc::get_type_size(application->type)) + ' ' :
                             "";
                     if (oper == "+")
-                        as.instruct(*(scope->name), "add " + word + location + ", " + *(lcurrent->value));
+                        as.instruct(scope->name(), "add " + word + location + ", " + *(lcurrent->value));
                     else if (oper == "-")
-                        as.instruct(*(scope->name), "sub " + word + location + ", " + *(lcurrent->value));
+                        as.instruct(scope->name(), "sub " + word + location + ", " + *(lcurrent->value));
                     else
-                        as.instruct(*(scope->name), "mov " + word + location + ", " + *(lcurrent->value));
+                        as.instruct(scope->name(), "mov " + word + location + ", " + *(lcurrent->value));
                     oper.clear(); // delete the operator
                     lcurrent = lcurrent->next;
                     continue;
@@ -525,14 +577,14 @@ namespace asc
                 if (check_eof(lcurrent, true))
                     break;
                 if (application == nullptr)
-                    as.instruct(*(scope->name), "push " + location); // preserve value in rax so a possible function call doesn't overwrite it
+                    as.instruct(scope->name(), "push " + location); // preserve value in rax so a possible function call doesn't overwrite it
                 if (eval_function_call(lcurrent) == STATE_FOUND)
                 {
                     if (application != nullptr) // if an application is provided, it will be stored at its stack location
                         location = "[rbp + " + std::to_string(application->stack_m) + "]";
                     std::cout << "function call validated from expression with an application of ";
                     if (application != nullptr)
-                        std::cout << *(application->name) << " and a location of ";
+                        std::cout << application->name() << " and a location of ";
                     std::cout << location << std::endl;
                     ////std::cout << "expression: function call: " << *(lcurrent->value) << std::endl;
                     std::string word = application != nullptr ?
@@ -540,16 +592,16 @@ namespace asc
                             "";
                     if (application == nullptr)
                     {
-                        as.instruct(*(scope->name), "mov rbx, rax"); // move function return value into rbx
-                        as.instruct(*(scope->name), "pop " + location); // restore value
+                        as.instruct(scope->name(), "mov rbx, rax"); // move function return value into rbx
+                        as.instruct(scope->name(), "pop " + location); // restore value
                     }
                     std::string ret_val_reg = application != nullptr ? "rax" : "rbx";
                     if (oper == "+")
-                        as.instruct(*(scope->name), "add " + word + location + ", " + ret_val_reg);
+                        as.instruct(scope->name(), "add " + word + location + ", " + ret_val_reg);
                     else if (oper == "-")
-                        as.instruct(*(scope->name), "sub " + word + location + ", " + ret_val_reg);
+                        as.instruct(scope->name(), "sub " + word + location + ", " + ret_val_reg);
                     else
-                        as.instruct(*(scope->name), "mov " + word + location + ", " + ret_val_reg);
+                        as.instruct(scope->name(), "mov " + word + location + ", " + ret_val_reg);
                     oper.clear(); // delete the operator
                     std::cout << "ending? " << *(lcurrent->value) << std::endl;
                     //if (eval_exp_ending(lcurrent) != STATE_FOUND) // if this is the end, keep it on the ending for later
@@ -557,7 +609,7 @@ namespace asc
                     continue;
                 }
                 if (application == nullptr)
-                    as.instruct(*(scope->name), "pop " + location); // preserve value in rax so a possible function call doesn't overwrite it
+                    as.instruct(scope->name(), "pop " + location); // preserve value in rax so a possible function call doesn't overwrite it
                 //std::cout << "expression: function call: lcurrent tracker: " << *(lcurrent->value) << std::endl;
                 asc::symbol*& symbol = symbols[*(lcurrent->value)];
                 if (symbol != nullptr)
@@ -568,11 +620,11 @@ namespace asc
                     if (res != "-1")
                         location = res;
                     if (oper == "+")
-                        as.instruct(*(scope->name), "add " + location + ", " + word + ' ' + symbol_loc);
+                        as.instruct(scope->name(), "add " + location + ", " + word + ' ' + symbol_loc);
                     else if (oper == "-")
-                        as.instruct(*(scope->name), "sub " + location + ", " + word + ' ' + symbol_loc);
+                        as.instruct(scope->name(), "sub " + location + ", " + word + ' ' + symbol_loc);
                     else
-                        as.instruct(*(scope->name), "mov " + location + ", " + word + ' ' + symbol_loc);
+                        as.instruct(scope->name(), "mov " + location + ", " + word + ' ' + symbol_loc);
                     oper.clear();
                     lcurrent = lcurrent->next;
                     continue;
@@ -588,6 +640,11 @@ namespace asc
         {
             syntax_node* current = this->current;
             return eval_expression(current, nullptr);
+        }
+
+        ~parser()
+        {
+            delete scope;
         }
     };
 }

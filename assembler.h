@@ -3,7 +3,10 @@
 
 #include <string>
 #include <map>
+#include <vector>
 #include <stdexcept>
+
+#include "symbol.h"
 
 namespace asc
 {
@@ -92,11 +95,19 @@ namespace asc
         std::string instructions;
         int stackalloc;
         int next_local_offset;
+        std::string ending;
         subroutine(bool functional = true)
         {
             this->functional = functional;
             this->stackalloc = 0;
             this->next_local_offset = 0;
+            this->ending = "ret";
+        }
+
+        subroutine& alloc_delta(int bs)
+        {
+            this->stackalloc += bs;
+            return *this;
         }
 
         std::string construct()
@@ -113,8 +124,10 @@ namespace asc
             {
                 if (this->stackalloc != 0)
                     str += "\n\tadd rsp, " + std::to_string(this->stackalloc);
-                str += "\n\tpop rbp\n\tret";
+                str += "\n\tpop rbp";
             }
+            if (ending.length() != 0)
+                str += "\n\t" + ending;
             return str;
         }
     };
@@ -161,38 +174,12 @@ namespace asc
             return instruct(subroutine, instruction, functional);
         }
 
-        assembler& alloc(std::string& subroutine, int bs, bool functional = true)
+        asc::subroutine*& sr(std::string& name, bool functional = true)
         {
-            asc::subroutine*& sr = subroutines[subroutine];
+            asc::subroutine*& sr = subroutines[name];
             if (sr == nullptr)
                 sr = new asc::subroutine(functional);
-            sr->stackalloc = bs;
-            return *this;
-        }
-
-        assembler& alloc_delta(std::string& subroutine, int bs, bool functional = true)
-        {
-            asc::subroutine*& sr = subroutines[subroutine];
-            if (sr == nullptr)
-                sr = new asc::subroutine(functional);
-            sr->stackalloc += bs;
-            return *this;
-        }
-
-        int allocated(std::string& subroutine)
-        {
-            asc::subroutine*& sr = subroutines[subroutine];
-            if (sr == nullptr)
-                return -1;
-            return sr->stackalloc;
-        }
-
-        int offset(std::string& subroutine, bool functional = true)
-        {
-            asc::subroutine*& sr = subroutines[subroutine];
-            if (sr == nullptr)
-                sr = new asc::subroutine(functional);
-            return sr->next_local_offset -= 8;
+            return sr;
         }
 
         assembler& operator<<(std::string& line)

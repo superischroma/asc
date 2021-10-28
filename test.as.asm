@@ -1,5 +1,30 @@
 section .text
 global main
+B1:
+	mov dword [rbp + -4], 8
+	jmp B2
+B2:
+	mov rax, 5
+	push rax
+	push rcx
+	push rdx
+	push r8
+	push r9
+	push rbp
+	mov rbp, rsp
+	sub rsp, 32
+	mov rax, 5
+	mov rcx, rax
+	call nothing
+	mov rsp, rbp
+	pop rbp
+	pop r9
+	pop r8
+	pop rdx
+	pop rcx
+	mov rbx, rax
+	pop rax
+	sub rax, rbx
 k:
 	push rbp
 	mov rbp, rsp
@@ -80,27 +105,11 @@ main:
 	pop rdx
 	pop rcx
 	add qword [rbp + -12], rax
-	mov rax, 5
 	push rax
-	push rcx
-	push rdx
-	push r8
-	push r9
-	push rbp
-	mov rbp, rsp
-	sub rsp, 32
-	mov rax, 5
-	mov rcx, rax
-	call nothing
-	mov rsp, rbp
-	pop rbp
-	pop r9
-	pop r8
-	pop rdx
-	pop rcx
-	mov rbx, rax
 	pop rax
-	sub rax, rbx
+	mov eax, dword [rbp + -4]
+	cmp rax, 0
+	jne B1
 	add rsp, 12
 	pop rbp
 	ret
