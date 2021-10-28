@@ -51,7 +51,10 @@ int main(int argc, char* argv[])
         asc::evaluation_state es_fc = ps.eval_function_call();
         std::cout << "function call: " << (int) es_fc << std::endl;
         if (es_fc == asc::STATE_FOUND)
+        {
+            ps.current = ps.current->next; // move past semicolon, only here because this is a standalone function call
             continue;
+        }
         if (es_fc == asc::STATE_SYNTAX_ERROR)
             return -1;
         asc::err("unknown statement", ps.current->line);

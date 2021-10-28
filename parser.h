@@ -32,6 +32,7 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             if (!exp)
                 return STATE_NEUTRAL;
+            std::cout << "expression eval for recursive function arg definitions" << std::endl;
             evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg and store in rax
             if (ev_ex == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
@@ -279,8 +280,6 @@ namespace asc
             lcurrent = lcurrent->next;
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
-            as.instruct(*(scope->name), "push rax"); // preserve rax due to argument evaluation
-
             as.instruct(*(scope->name), "push rcx"); // make sure none of these values
             as.instruct(*(scope->name), "push rdx"); // are modified during argument passing
             as.instruct(*(scope->name), "push r8");
@@ -291,6 +290,7 @@ namespace asc
             as.instruct(*(scope->name), "sub rsp, 32"); // alloc 32 bytes of shadow space
             for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND && i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]); i++)
             {
+                std::cout << "expression eval for argument variable" << std::endl;
                 evaluation_state ev_ex = eval_expression(lcurrent, nullptr); // eval for expression of current arg and store in rax
                 if (ev_ex == STATE_SYNTAX_ERROR)
                     return STATE_SYNTAX_ERROR;
@@ -315,23 +315,15 @@ namespace asc
             as.instruct(*(scope->name), "pop r8"); // are modified during argument passing
             as.instruct(*(scope->name), "pop rdx");
             as.instruct(*(scope->name), "pop rcx");
-
-            as.instruct(*(scope->name), "pop rax");
             if (lcurrent == nullptr) // unexpected end to arguments
             {
                 asc::err("unexpected end to argument passing", i_line);
                 return STATE_SYNTAX_ERROR;
             }
             //std::cout << "from: " << *(lcurrent->value) << std::endl;
-            lcurrent = lcurrent->next; // move past semicolon
+            lcurrent = lcurrent->next; // move past ending parenthesis
             current = lcurrent;
-            if (lcurrent != nullptr && *(lcurrent->value) == ";")
-            {
-                //std::cout << "to: " << *(lcurrent->value) << std::endl;
-                lcurrent = lcurrent->next; // move past semicolon
-                current = lcurrent;
-                //std::cout << "to x2: " << *(lcurrent->value) << std::endl;
-            }
+            std::cout << "end with: " << *(lcurrent->value) << std::endl;
             return STATE_FOUND;
         }
 
@@ -347,7 +339,7 @@ namespace asc
                 return STATE_NEUTRAL;
             if (*(lcurrent->value) != "return") // not a return statement
                 return STATE_NEUTRAL;
-            std::cout << "ret: " << *(lcurrent->next->value) << std::endl;
+            std::cout << "expression eval for return expression" << std::endl;
             return eval_expression(lcurrent = lcurrent->next, nullptr);
         }
 
@@ -460,6 +452,7 @@ namespace asc
             lcurrent = lcurrent->next; // and now, expression evaluation
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
+            std::cout << "expression eval for " << *(var_symbol->name) << " variable decl" << std::endl;
             return eval_expression(lcurrent, var_symbol);
         }
 
@@ -497,7 +490,7 @@ namespace asc
                 //std::cout << "expression: first: lcurrent tracker: " << *(lcurrent->value) << std::endl;
                 if (eval_operator(lcurrent) == STATE_FOUND) // found an operator
                 {
-                    ////std::cout << "expression: operator: " << *(lcurrent->value) << std::endl;
+                    std::cout << "expression: operator: " << *(lcurrent->value) << std::endl;
                     oper = *(lcurrent->value);
                     lcurrent = lcurrent->next;
                     continue;
@@ -505,8 +498,9 @@ namespace asc
                 //std::cout << "expression: operator: lcurrent tracker: " << *(lcurrent->value) << std::endl;
                 if (eval_exp_ending(lcurrent) == STATE_FOUND)
                 {
-                    ////std::cout << "expression: exp ending: " << *(lcurrent->value) << std::endl;
-                    lcurrent = lcurrent->next;
+                    std::cout << "expression: exp ending: " << *(lcurrent->value) << std::endl;
+                    if (*(lcurrent->value) != ")") // if the ending is for a function call, don't move along so that the function call knows it has reached the end
+                        lcurrent = lcurrent->next;
                     current = lcurrent;
                     return STATE_FOUND;
                 }
@@ -534,8 +528,11 @@ namespace asc
                     as.instruct(*(scope->name), "push " + location); // preserve value in rax so a possible function call doesn't overwrite it
                 if (eval_function_call(lcurrent) == STATE_FOUND)
                 {
+                    if (application != nullptr) // if an application is provided, it will be stored at its stack location
+                        location = "[rbp + " + std::to_string(application->stack_m) + "]";
                     std::cout << "function call validated from expression with an application of ";
-                    std::cout << *(application->name) << " and a location of ";
+                    if (application != nullptr)
+                        std::cout << *(application->name) << " and a location of ";
                     std::cout << location << std::endl;
                     ////std::cout << "expression: function call: " << *(lcurrent->value) << std::endl;
                     std::string word = application != nullptr ?
@@ -554,7 +551,9 @@ namespace asc
                     else
                         as.instruct(*(scope->name), "mov " + word + location + ", " + ret_val_reg);
                     oper.clear(); // delete the operator
-                    lcurrent = lcurrent->next;
+                    std::cout << "ending? " << *(lcurrent->value) << std::endl;
+                    //if (eval_exp_ending(lcurrent) != STATE_FOUND) // if this is the end, keep it on the ending for later
+                    //    lcurrent = lcurrent->next; // otherwise, move on
                     continue;
                 }
                 if (application == nullptr)

@@ -23,8 +23,44 @@ main:
 	mov qword [rbp + -12], 3
 	add qword [rbp + -12], 4
 	sub qword [rbp + -12], 6
-	mov rbx, qword [rbp + -12]
+	push rcx
+	push rdx
+	push r8
+	push r9
+	push rbp
+	mov rbp, rsp
+	sub rsp, 32
 	push rax
+	push rcx
+	push rdx
+	push r8
+	push r9
+	push rbp
+	mov rbp, rsp
+	sub rsp, 32
+	push rax
+	pop rax
+	mov rax, qword [rbp + -12]
+	mov rcx, rax
+	call nothing
+	mov rsp, rbp
+	pop rbp
+	pop r9
+	pop r8
+	pop rdx
+	pop rcx
+	mov rbx, rax
+	pop rax
+	mov rax, rbx
+	mov rcx, rax
+	call nothing
+	mov rsp, rbp
+	pop rbp
+	pop r9
+	pop r8
+	pop rdx
+	pop rcx
+	mov qword [rbp + -12], rax
 	push rcx
 	push rdx
 	push r8
@@ -43,10 +79,28 @@ main:
 	pop r8
 	pop rdx
 	pop rcx
+	add qword [rbp + -12], rax
+	mov rax, 5
+	push rax
+	push rcx
+	push rdx
+	push r8
+	push r9
+	push rbp
+	mov rbp, rsp
+	sub rsp, 32
+	mov rax, 5
+	mov rcx, rax
+	call nothing
+	mov rsp, rbp
+	pop rbp
+	pop r9
+	pop r8
+	pop rdx
+	pop rcx
+	mov rbx, rax
 	pop rax
-	add qword rbx, rax
-	mov qword rbx, 5
-	sub qword rbx, 5
+	sub rax, rbx
 	add rsp, 12
 	pop rbp
 	ret
