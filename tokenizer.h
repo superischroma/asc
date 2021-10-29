@@ -18,6 +18,7 @@ namespace asc
         asc::syntax_node* current_node;
         asc::syntax_node* last_identifier;
         asc::syntax_node* scope;
+        unsigned char comment; // 0 - no comment, 1 - one line comment, 2 - block comment
     public:
         tokenizer(std::ifstream& is)
         {
@@ -26,6 +27,7 @@ namespace asc
             this->later = "";
             this->syntax_head = new asc::syntax_node(nullptr, asc::syntax_types::PROGRAM_BEGIN, "A#", 0);
             this->current_node = this->syntax_head;
+            this->comment = comment;
         }
 
         int lines()
@@ -50,7 +52,19 @@ namespace asc
             for (char c = is->get(); is->good(); c = is->get())
             {
                 if (c == '\n')
+                {
                     linet++;
+                    if (this->comment == 1) // if one line comment
+                        this->comment = 0; // get rid of comment
+                }
+                if (token == "#") // if token is comment
+                {
+                    this->comment = 1;
+                    token.clear();
+                    continue;
+                }
+                if (this->comment != 0) // in a comment
+                    continue;
                 if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
                     token += c;
                 /// KEYWORD ///

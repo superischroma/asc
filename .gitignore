@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+# Stackdumps from runtime errors
+*.stackdump
+
+# Assembly code created by asc
+*.asm
+
+# GAS code from GNU compiler tests
+*.s

@@ -91,44 +91,66 @@ namespace asc
     class subroutine
     {
     public:
-        bool functional;
         std::string instructions;
         int stackalloc;
         int next_local_offset;
         std::string ending;
-        subroutine(bool functional = true)
+        subroutine* parent;
+        std::vector<subroutine*>* children;
+        subroutine(subroutine* parent)
         {
-            this->functional = functional;
             this->stackalloc = 0;
             this->next_local_offset = 0;
             this->ending = "ret";
+            this->parent = parent;
+            if (parent != nullptr)
+                parent->add_child(this);
         }
 
         subroutine& alloc_delta(int bs)
         {
-            this->stackalloc += bs;
+            if (this->parent == nullptr)
+                this->stackalloc += bs;
+            else
+                this->parent->stackalloc += bs;
+            return *this;
+        }
+
+        subroutine& add_child(subroutine* sr)
+        {
+            if (children == nullptr)
+                children = new std::vector<subroutine*>();
+            children->push_back(sr);
             return *this;
         }
 
         std::string construct()
         {
             std::string str;
-            if (this->functional)
+            if (this->parent == nullptr)
             {
                 str += "\n\tpush rbp\n\tmov rbp, rsp";
                 if (this->stackalloc != 0)
                     str += "\n\tsub rsp, " + std::to_string(this->stackalloc);
             }
             str += instructions;
-            if (this->functional)
+            if ((this->parent != nullptr &&
+                this->parent->children != nullptr &&
+                this->parent->children->size() > 0 &&
+                this->parent->children->at(this->parent->children->size() - 1) == this) || this->parent == nullptr)
             {
                 if (this->stackalloc != 0)
-                    str += "\n\tadd rsp, " + std::to_string(this->stackalloc);
+                    str += "\n\tadd rsp, " + std::to_string(this->parent == nullptr ? this->stackalloc : this->parent->stackalloc);
                 str += "\n\tpop rbp";
             }
             if (ending.length() != 0)
                 str += "\n\t" + ending;
             return str;
+        }
+
+        ~subroutine()
+        {
+            if (children != nullptr) delete children;
         }
     };
 
@@ -159,26 +181,34 @@ namespace asc
             return enter(subroutine);
         }
 
-        assembler& instruct(std::string& subroutine, std::string instruction, bool functional = true)
+        assembler& instruct(std::string& subroutine, std::string instruction)
         {
             asc::subroutine*& sr = subroutines[subroutine];
             if (sr == nullptr)
-                sr = new asc::subroutine(functional);
+                sr = new asc::subroutine(nullptr);
             sr->instructions += "\n\t" + instruction;
             std::cout << "added \"" << instruction << "\" to " << subroutine << std::endl;
             return *this;
         }
 
-        assembler& instruct(std::string&& subroutine, std::string instruction, bool functional = true)
+        assembler& instruct(std::string&& subroutine, std::string instruction)
         {
-            return instruct(subroutine, instruction, functional);
+            return instruct(subroutine, instruction);
         }
 
-        asc::subroutine*& sr(std::string& name, bool functional = true)
+        asc::subroutine*& sr(std::string& name, subroutine* parent)
         {
             asc::subroutine*& sr = subroutines[name];
             if (sr == nullptr)
-                sr = new asc::subroutine(functional);
+                sr = new asc::subroutine(parent);
+            return sr;
+        }
+
+        asc::subroutine*& sr(std::string& name)
+        {
+            asc::subroutine*& sr = subroutines[name];
+            if (sr == nullptr)
+                sr = new asc::subroutine(nullptr);
             return sr;
         }
 

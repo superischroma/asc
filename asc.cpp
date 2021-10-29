@@ -66,6 +66,7 @@ int main(int argc, char* argv[])
         asc::err("unknown statement", ps.current->line);
         return -1;
     }
+    /*
     std::cout << "symbols: " << std::endl;
     for (std::pair<std::string, asc::symbol*> pair : ps.symbols)
     {
@@ -73,6 +74,7 @@ int main(int argc, char* argv[])
             continue;
         std::cout << pair.second->visibility << ' ' << pair.second->type << ' ' << pair.second->name() << " in scope " << (pair.second->scope != nullptr ? pair.second->scope->name() : "global") << std::endl;
     }
+    */
     asc::symbol*& entry = ps.symbols[ps.as.entry];
     if (entry == nullptr)
     {

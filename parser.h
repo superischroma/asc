@@ -379,16 +379,27 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             lcurrent = lcurrent->next; // move past left brace, and into the if statement
             //// END TODO
-            std::string name = 'B' + std::to_string(++this->branchc);
-            as.instruct(scope->name(), "cmp rax, 0");
-            as.instruct(scope->name(), "jne " + name);
-            as.sr(name, false)->ending = "jmp B" + std::to_string(this->scope->split_b = ++this->branchc);
+            std::string ifbname = 'B' + std::to_string(++this->branchc); // if branch name
+            std::string aftername = 'B' + std::to_string(++this->branchc); // after the if statement, plus split the current label
+            as.instruct(scope->name(), "cmp rax, 0");       // if expression is not false
+            as.instruct(scope->name(), "jne " + ifbname);   // jump to if branch
+            as.instruct(scope->name(), "jmp " + aftername); // otherwise, jump to after branch
             std::string sname = scope->name();
-            asc::subroutine*& sr = as.sr(sname);
-            sr->ending = "";
-            sr->functional = false;
-            this->scope = new asc::symbol(name, "if", "public", this->scope);
-            // move statement scope into the if statement
+            std::cout << '1' << std::endl;
+            asc::subroutine*& csr = as.sr(sname); // current subroutine
+            std::cout << '2' << std::endl;
+            this->scope->split_b = this->branchc; // split the function by the after branch
+            std::cout << '3' << std::endl;
+            csr->ending = ""; // get rid of the ending for our current sr, because it will never be reached
+            std::cout << '4' << std::endl;
+            asc::subroutine*& ifb = as.sr(ifbname, csr); // if block subroutine
+            std::cout << '5' << std::endl;
+            asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
+            std::cout << '6' << std::endl;
+            ifb->ending = "jmp B" + aftername; // setting ending of if block to be the jump to the after block
+            std::cout << '7' << std::endl;
+            this->scope = new asc::symbol(ifbname, "if", "public", this->scope); // move scope into if statement
+            std::cout << '8' << std::endl;
             current = lcurrent; // bring current up to speed
             return STATE_FOUND;
         }
