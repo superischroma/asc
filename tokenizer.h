@@ -27,7 +27,7 @@ namespace asc
             this->later = "";
             this->syntax_head = new asc::syntax_node(nullptr, asc::syntax_types::PROGRAM_BEGIN, "A#", 0);
             this->current_node = this->syntax_head;
-            this->comment = comment;
+            this->comment = 0;
         }
 
         int lines()
@@ -67,7 +67,7 @@ namespace asc
                     continue;
                 if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
                     token += c;
-                /// KEYWORD ///
+                //// KEYWORD ////
                 if (asc::is_keyword(token))
                 {
                     this->current_node = this->current_node->next = new asc::syntax_node(nullptr, asc::syntax_types::KEYWORD, token, linet);

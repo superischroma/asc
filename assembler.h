@@ -91,14 +91,16 @@ namespace asc
     class subroutine
     {
     public:
+        std::string name;
         std::string instructions;
         int stackalloc;
         int next_local_offset;
         std::string ending;
         subroutine* parent;
         std::vector<subroutine*>* children;
-        subroutine(subroutine* parent)
+        subroutine(std::string name, subroutine* parent)
         {
+            this->name = name;
             this->stackalloc = 0;
             this->next_local_offset = 0;
             this->ending = "ret";
@@ -137,7 +139,11 @@ namespace asc
             if ((this->parent != nullptr &&
                 this->parent->children != nullptr &&
                 this->parent->children->size() > 0 &&
-                this->parent->children->at(this->parent->children->size() - 1) == this) || this->parent == nullptr)
+                this->parent->children->at(this->parent->children->size() - 1)->name == this->name)
+                ||
+                (this->parent == nullptr &&
+                    (this->children == nullptr ||
+                        (this->children != nullptr && this->children->size() == 0))))
             {
                 if (this->stackalloc != 0)
                     str += "\n\tadd rsp, " + std::to_string(this->parent == nullptr ? this->stackalloc : this->parent->stackalloc);
@@ -185,7 +191,7 @@ namespace asc
         {
             asc::subroutine*& sr = subroutines[subroutine];
             if (sr == nullptr)
-                sr = new asc::subroutine(nullptr);
+                sr = new asc::subroutine(subroutine, nullptr);
             sr->instructions += "\n\t" + instruction;
             std::cout << "added \"" << instruction << "\" to " << subroutine << std::endl;
             return *this;
@@ -200,7 +206,7 @@ namespace asc
         {
             asc::subroutine*& sr = subroutines[name];
             if (sr == nullptr)
-                sr = new asc::subroutine(parent);
+                sr = new asc::subroutine(name, parent);
             return sr;
         }
 
@@ -208,7 +214,7 @@ namespace asc
         {
             asc::subroutine*& sr = subroutines[name];
             if (sr == nullptr)
-                sr = new asc::subroutine(nullptr);
+                sr = new asc::subroutine(name, nullptr);
             return sr;
         }
 
