@@ -105,6 +105,7 @@ namespace asc
             this->next_local_offset = 0;
             this->ending = "ret";
             this->parent = parent;
+            this->children = nullptr;
             if (parent != nullptr)
                 parent->add_child(this);
         }
@@ -122,6 +123,7 @@ namespace asc
         {
             if (children == nullptr)
                 children = new std::vector<subroutine*>();
+            std::cout << sr << ", " << children << std::endl;
             children->push_back(sr);
             return *this;
         }
@@ -145,8 +147,10 @@ namespace asc
                     (this->children == nullptr ||
                         (this->children != nullptr && this->children->size() == 0))))
             {
-                if (this->stackalloc != 0)
-                    str += "\n\tadd rsp, " + std::to_string(this->parent == nullptr ? this->stackalloc : this->parent->stackalloc);
+                if (this->parent != nullptr && this->parent->stackalloc != 0)
+                    str += "\n\tadd rsp, " + std::to_string(this->parent->stackalloc);
+                else if (this->stackalloc != 0)
+                    str += "\n\tadd rsp, " + std::to_string(this->stackalloc);
                 str += "\n\tpop rbp";
             }
             if (ending.length() != 0)
