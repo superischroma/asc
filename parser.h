@@ -54,6 +54,7 @@ namespace asc
         parser(syntax_node* root)
         {
             this->current = root;
+            this->scope = nullptr;
             this->branchc = 0;
         }
 
@@ -408,6 +409,25 @@ namespace asc
                 return STATE_NEUTRAL;
             if (*(lcurrent->value) != "}") // not a function ending
                 return STATE_NEUTRAL;
+            if (scope == nullptr) // if we're in the global scope
+            {
+                asc::err("attempting to scope out of the global scope", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            for (auto it = symbols.cbegin(); it != symbols.cend();)
+            // destroy all symbols in the current scope
+            {
+                if (it->second == nullptr)
+                    continue;
+                if (it->second->scope == scope)
+                {
+                    auto symbol = it->second;
+                    symbols.erase(it++);
+                    delete symbol;
+                }
+                else
+                    ++it;
+            }
             scope = scope->scope; // scope out of function
             lcurrent = lcurrent->next;
             current = lcurrent;
@@ -647,7 +667,8 @@ namespace asc
 
         ~parser()
         {
-            delete scope;
+            if (scope != nullptr)
+                delete scope;
         }
     };
 }
