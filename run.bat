@@ -1,2 +1,2 @@
-g++ -ggdb -o asc.exe asc.cpp logger.cpp && asc tests/test.as
+g++ -o asc.exe *.cpp && asc tests/test.as
 pause

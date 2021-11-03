@@ -6,6 +6,9 @@
 #include "tokenizer.h"
 #include "logger.h"
 #include "parser.h"
+#include "util.h"
+
+int compile(std::string filepath);
 
 int main(int argc, char* argv[])
 {
@@ -14,7 +17,17 @@ int main(int argc, char* argv[])
         asc::err("no input files");
         return -1;
     }
-    std::ifstream is = std::ifstream(argv[1]);
+    return compile(std::string(argv[1]));
+}
+
+int compile(std::string filepath)
+{
+    if (!asc::ends_with(filepath, ".as"))
+    {
+        asc::err(filepath + " is not A# source code");
+        return -1;
+    }
+    std::ifstream is = std::ifstream(filepath);
     asc::tokenizer tk = asc::tokenizer(is);
     for (std::string token; tk.extractable();)
         tk >> token;
@@ -81,7 +94,7 @@ int main(int argc, char* argv[])
         asc::err("no entry point found in program");
         return -1;
     }
-    std::ofstream os = std::ofstream(std::string(argv[1]) + ".asm", std::ios::trunc);
+    std::ofstream os = std::ofstream(filepath.substr(0, filepath.length() - 3) + ".asm", std::ios::trunc);
     std::string constructed = ps.as.construct();
     os.write(constructed.c_str(), constructed.length());
     os.close();
