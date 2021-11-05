@@ -17,6 +17,7 @@ namespace asc
         const unsigned short IDENTIFIER = 2;
         const unsigned short PUNCTUATOR = 3;
         const unsigned short CONSTANT = 4;
+        const unsigned short STRING_LITERAL = 5;
 
         std::string name(unsigned short type);
     }

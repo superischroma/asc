@@ -1,7 +1,11 @@
 #include "tokenizer.h"
+#include "util.h"
 
 namespace asc
 {
+    const unsigned long long COMMENT = 1 << 0;
+    const unsigned long long STRING_LITERAL = 1 << 1;
+
     tokenizer::tokenizer(std::ifstream& is)
     {
         this->is = &is;
@@ -9,7 +13,7 @@ namespace asc
         this->later = "";
         this->syntax_head = new asc::syntax_node(nullptr, asc::syntax_types::PROGRAM_BEGIN, "A#", 0);
         this->current_node = this->syntax_head;
-        this->comment = 0;
+        this->options = 0ULL;
     }
 
     int tokenizer::lines()
@@ -36,17 +40,40 @@ namespace asc
             if (c == '\n')
             {
                 linet++;
-                if (this->comment == 1) // if one line comment
-                    this->comment = 0; // get rid of comment
+
+                //// COMMENTS ////
+                if ((this->options & COMMENT) != 0) // if one line comment
+                    this->options &= ~COMMENT; // get rid of comment
             }
+            if ((this->options & COMMENT) != 0) // in a comment
+                continue;
             if (token == "#") // if token is comment
             {
-                this->comment = 1;
+                this->options |= COMMENT;
                 token.clear();
                 continue;
             }
-            if (this->comment != 0) // in a comment
-                continue;
+            
+            //// STRING LITERALS ////
+            if (c == '"' && !asc::ends_with(token, "\\")) // if we encounter a non-escaped double quote
+            {
+                if ((this->options & STRING_LITERAL) == 0) // if we're not in a literal
+                    this->options |= STRING_LITERAL; // put us in a literal
+                else // otherwise
+                {
+                    this->options &= ~STRING_LITERAL; // kick us out of the literal
+                    token += c; // add the ending quote
+                    // make a new syntax node
+                    this->current_node = this->current_node->next = new asc::syntax_node(nullptr, asc::syntax_types::STRING_LITERAL, token, linet);
+                    return *this;
+                }
+            }
+            if ((this->options & STRING_LITERAL) != 0) // in a string iteral
+            {
+                token += c;
+                continue; // don't check for keywords, punctuators, etc.
+            }
+
             if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
                 token += c;
             //// KEYWORD ////

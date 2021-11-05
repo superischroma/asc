@@ -18,7 +18,7 @@ namespace asc
         asc::syntax_node* current_node;
         asc::syntax_node* last_identifier;
         asc::syntax_node* scope;
-        unsigned char comment; // 0 - no comment, 1 - one line comment, 2 - block comment
+        unsigned long long options;
     public:
         tokenizer(std::ifstream& is);
         int lines();

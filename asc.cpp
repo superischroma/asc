@@ -7,17 +7,34 @@
 #include "logger.h"
 #include "parser.h"
 #include "util.h"
+#include "cli.h"
 
 int compile(std::string filepath);
+int visually_tokenize(std::string filepath);
 
 int main(int argc, char* argv[])
 {
-    if (argc <= 1)
+    asc::arg_result args = asc::eval_args(argc, argv);
+    if (args.files.size() <= 0)
     {
         asc::err("no input files");
         return -1;
     }
-    return compile(std::string(argv[1]));
+    if (asc::has_option_set(args, asc::cli_options::TOKENIZE))
+    {
+        for (auto const& file : args.files)
+        {
+            if (visually_tokenize(file) == -1)
+                return -1;
+        }
+        return 0;
+    }
+    for (auto const& file : args.files)
+    {
+        if (compile(std::string(argv[1])) == -1)
+            return -1;
+    }
+    return 0;
 }
 
 int compile(std::string filepath)
@@ -98,4 +115,24 @@ int compile(std::string filepath)
     std::string constructed = ps.as.construct();
     os.write(constructed.c_str(), constructed.length());
     os.close();
+    is.close();
+    return 0;
+}
+
+int visually_tokenize(std::string filepath)
+{
+    if (!asc::ends_with(filepath, ".as"))
+    {
+        asc::err(filepath + " is not A# source code");
+        return -1;
+    }
+    std::ifstream is = std::ifstream(filepath);
+    asc::tokenizer tk = asc::tokenizer(is);
+    for (std::string token; tk.extractable();)
+        tk >> token;
+    std::cout << filepath << " tokenized: " << std::endl;
+    for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
+        std::cout << current->stringify() << std::endl;
+    is.close();
+    return 0;
 }

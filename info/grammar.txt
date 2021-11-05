@@ -1,13 +1,17 @@
-function declaration :== [visibility] <type> <identifier>([<type> <identifier>]...)
-type :== byte | short | char | int | long
+function declaration :== [visibility] [function quality...] <type> <identifier>([<type> <identifier>]...)
+function quality :== native | static | transparent
+type :== [type quality...] <byte | short | char | int | long> [[]]
+type quality :== unsigned
 identifier :== <any word>
 visibility :== public | private | protected
 variable declaration :== [visibility] <type> <identifier>
-variable definition :== [visibility] <type> <identifier> = <expression> | <identifier> = <expression> Iff identifier declared
+variable definition :== [visibility] <type> <identifier> = <expression> | <identifier> = <expression>
 numeric literal :== <any number, real or whole>
-expression :== <<numeric literal> | <identifier> | <function call> | (<expression>) | <expression> <operator> <expression>> <expression ending>
+expression :== <<numeric literal> | <string literal> | <identifier> | <function call> | (<expression>) | <expression> <operator> <expression>> <expression ending>
 expression ending :== ; | , | )
 operator :== = | + | - | * | / | % | += | -= | *= | /= | %=
-function call :== <identifier>([expression]...)
+function call :== <identifier>([expression...])
 block ending :== }
 return statement :== return <expression>
+use statement :== use [native] <string literal>
+string literal :== <any text surrounded in quotes>

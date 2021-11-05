@@ -14,6 +14,7 @@ namespace asc
                 case 2: return "IDENTIFIER";
                 case 3: return "PUNCTUATOR";
                 case 4: return "CONSTANT";
+                case 5: return "STRING_LITERAL";
             }
             return std::to_string(type);
         }
@@ -37,7 +38,9 @@ namespace asc
         "protected",
         "if",
         "for",
-        "while"
+        "while",
+        "use",
+        "native"
     };
 
     const char* PUNCTUATORS[] = {
@@ -51,7 +54,9 @@ namespace asc
         "+",
         "-",
         "*",
-        "/"
+        "/",
+        "[",
+        "]"
     };
 
     const char* OPERATORS[] = {
