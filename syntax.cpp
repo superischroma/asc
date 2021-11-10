@@ -169,6 +169,17 @@ namespace asc
         return "-1";
     }
 
+    std::string& unwrap(std::string& sl)
+    {
+        if (sl.length() == 0) // not even a quote LOL
+            return sl;
+        if (sl[0] == '"') // beginning quote
+            sl.erase(sl.cbegin());
+        if (sl[sl.length() - 1] == '"') // end quote
+            sl.erase(sl.cend());
+        return sl;
+    }
+
     /* class syntax_node */
 
     syntax_node::syntax_node(syntax_node* next, unsigned short type, std::string value, int line)

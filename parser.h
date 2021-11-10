@@ -52,6 +52,8 @@ namespace asc
         evaluation_state eval_block_ending();
         evaluation_state eval_variable_decl_def(syntax_node*& lcurrent);
         evaluation_state eval_variable_decl_def();
+        evaluation_state eval_use(syntax_node*& lcurrent);
+        evaluation_state eval_use();
         evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
         evaluation_state eval_expression();
         ~parser();

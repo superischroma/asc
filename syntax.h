@@ -38,6 +38,8 @@ namespace asc
 
     std::string get_word(int size);
 
+    std::string& unwrap(std::string& sl);
+
     class syntax_node
     {
     public:

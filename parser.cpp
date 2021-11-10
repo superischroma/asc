@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "asc.h"
 
 namespace asc
 {
@@ -513,6 +514,45 @@ namespace asc
     {
         syntax_node* current = this->current;
         return eval_variable_decl_def(current);
+    }
+
+    evaluation_state parser::eval_use(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*(lcurrent->value) != "use") // not a use statement
+            return STATE_NEUTRAL; // neutral state indicating no change
+        lcurrent = lcurrent->next;
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (lcurrent->type != asc::syntax_types::STRING_LITERAL) // eventual handling for native use statements
+        {
+            asc::err("unimplemented feature: native use statements", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        std::string& path = asc::unwrap(*(lcurrent->value));
+        if (asc::compile(path) == -1) // if compilation doesn't work for external module
+        {
+            asc::err("usage compilation of " + path + " failed", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        lcurrent = lcurrent->next; // skip to semicolon
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*(lcurrent->value) != ";") // if this isn't a semicolon
+        {
+            asc::err("expected a semicolon", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        lcurrent = lcurrent->next; // go past semicolon
+        current = lcurrent; // sync up current
+        return STATE_FOUND; // return good state
+    }
+
+    evaluation_state parser::eval_use()
+    {
+        syntax_node* current = this->current;
+        return eval_use(current);
     }
 
     evaluation_state parser::eval_expression(syntax_node*& lcurrent, asc::symbol* application)
