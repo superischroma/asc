@@ -15,12 +15,13 @@ public int nothing(int v)
 public int main()
 {
     int i;
-    i = 5;
+    i = 1;
     long j = 3 + 4 - 6;
     j = nothing(nothing(j)) + nothing(i);
     if (i)
     {
         i = 8;
+        @print nothing(i);
     }
     return 5 - nothing(5);
 }

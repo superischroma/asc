@@ -7,6 +7,16 @@ namespace asc
         std::cout << "asc: " << descriptor << ": " << str << std::endl;
     }
 
+    void gen(std::string& str)
+    {
+        std::cout << "asc: " << str << std::endl;
+    }
+
+    void gen(std::string&& str)
+    {
+        gen(str);
+    }
+
     void info(std::string& str)
     {
         log(str, "info");

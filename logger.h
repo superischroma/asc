@@ -7,6 +7,8 @@ namespace asc
 {
     void info(std::string& str);
     void info(std::string&& str);
+    void gen(std::string& str);
+    void gen(std::string&& str);
     void warn(std::string& str);
     void warn(std::string&& str);
     void err(std::string& str);

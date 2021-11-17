@@ -147,6 +147,7 @@ namespace asc
     {
         this->entry = entry;
         this->write_mode = 0;
+        this->ext = std::set<std::string>();
     }
 
     assembler& assembler::enter(std::string& subroutine)
@@ -173,6 +174,11 @@ namespace asc
     assembler& assembler::instruct(std::string&& subroutine, std::string instruction)
     {
         return instruct(subroutine, instruction);
+    }
+
+    assembler& assembler::external(std::string identifier)
+    {
+        ext.insert(identifier);
     }
 
     asc::subroutine*& assembler::sr(std::string& name, subroutine* parent)
@@ -224,6 +230,8 @@ namespace asc
     std::string assembler::construct()
     {
         std::string f;
+        for (auto& e : ext)
+            f += "extern " + e + '\n';
         if (data.length() != 0)
             f += "section .data" + data;
         if (bss.length() != 0)
@@ -233,7 +241,7 @@ namespace asc
         }
         if (subroutines.size() == 0)
             return f;
-        if (data.length() != 0 || bss.length() != 0)
+        if (ext.size() != 0 || data.length() != 0 || bss.length() != 0)
             f += '\n';
         f += "section .text";
         f += "\nglobal " + entry;

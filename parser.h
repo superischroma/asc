@@ -26,6 +26,7 @@ namespace asc
         std::map<std::string, symbol*> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
         int branchc; // counter for branches
+        int strlitc;
 
         parser(syntax_node* root);
         bool parseable();
@@ -48,6 +49,8 @@ namespace asc
         evaluation_state eval_ret();
         evaluation_state eval_if(syntax_node*& lcurrent);
         evaluation_state eval_if();
+        evaluation_state eval_hardcode(syntax_node*& lcurrent);
+        evaluation_state eval_hardcode();
         evaluation_state eval_block_ending(syntax_node*& lcurrent);
         evaluation_state eval_block_ending();
         evaluation_state eval_variable_decl_def(syntax_node*& lcurrent);

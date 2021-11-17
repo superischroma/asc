@@ -10,9 +10,49 @@
 #include "cli.h"
 #include "asc.h"
 
+std::string SRC_ASSEMBLER = "nasm";
+std::string SRC_LINKER = "gcc";
+std::vector<std::string> OBJECT_FILES;
+
 int main(int argc, char* argv[])
 {
+    std::ifstream ois = std::ifstream("options.cfg");
+    if (ois.fail())
+        asc::warn("no options file found, using default options");
+    if (!ois.fail())
+    {
+        auto options = asc::map_cfg_file(ois);
+        try
+        {
+            SRC_ASSEMBLER = options.at("assembler");
+        }
+        catch (std::out_of_range e)
+        {
+            asc::warn("no assembler specified, using default assembler");
+            SRC_ASSEMBLER = "nasm";
+        }
+        try
+        {
+            SRC_LINKER = options.at("linker");
+        }
+        catch (std::out_of_range e)
+        {
+            asc::warn("no linker specified, using default linker");
+            SRC_LINKER = "gcc";
+        }
+    }
     asc::arg_result args = asc::eval_args(argc, argv);
+    if (asc::has_option_set(args, asc::cli_options::HELP))
+    {
+        std::cout << "Usage: asc [options] file..." << std::endl;
+        std::cout << "Options:" << std::endl;
+        for (int i = 0; i < 2; i++)
+        {
+            asc::help_reference& hr = asc::REFERENCE_OPTIONS[i];
+            std::cout << "  " << hr.name << "\t\t" << hr.description << std::endl;
+        }
+        return 0;
+    }
     if (args.files.size() <= 0)
     {
         asc::err("no input files");
@@ -32,6 +72,19 @@ int main(int argc, char* argv[])
         if (asc::compile(std::string(argv[1])) == -1)
             return -1;
     }
+    if (SRC_LINKER == "gcc" || SRC_LINKER == "ld")
+    {
+        std::string cmd = SRC_LINKER;
+        for (auto& file : OBJECT_FILES)
+            cmd += ' ' + file;
+        system(cmd.c_str());
+    }
+    else
+    {
+        asc::err("linking with unsupported linker: " + SRC_LINKER);
+        return -1;
+    }
+    asc::info("object code has been linked and executable has been created");
     return 0;
 }
 namespace asc
@@ -87,7 +140,13 @@ namespace asc
             std::cout << "if: " << (int) es_if << std::endl;
             if (es_if == asc::STATE_FOUND)
                 continue;
-            if (es_r == asc::STATE_SYNTAX_ERROR)
+            if (es_if == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_hc = ps.eval_hardcode();
+            std::cout << "hardcode: " << (int) es_hc << std::endl;
+            if (es_hc == asc::STATE_FOUND)
+                continue;
+            if (es_hc == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_fc = ps.eval_function_call();
             std::cout << "function call: " << (int) es_fc << std::endl;
@@ -116,11 +175,22 @@ namespace asc
             asc::err("no entry point found in program");
             return -1;
         }
-        std::ofstream os = std::ofstream(filepath.substr(0, filepath.length() - 3) + ".asm", std::ios::trunc);
+        std::string asmfn = filepath.substr(0, filepath.length() - 3) + ".asm";
+        std::ofstream os = std::ofstream(asmfn, std::ios::trunc);
         std::string constructed = ps.as.construct();
         os.write(constructed.c_str(), constructed.length());
         os.close();
         is.close();
+        asc::info("source code of \"" + filepath + "\" has been successfully converted to assembly");
+        if (SRC_ASSEMBLER == "nasm")
+            system(("nasm -fwin64 " + asmfn).c_str());
+        else
+        {
+            asc::err("assembling \"" + filepath + "\" with unsupported assembler");
+            return -1;
+        }
+        asc::info("assembly code of \"" + asmfn + "\" has been successfully converted to object code");
+        OBJECT_FILES.push_back(filepath.substr(0, filepath.length() - 3) + ".obj");
         return 0;
     }
 

@@ -35,6 +35,7 @@ namespace asc
         this->current = root;
         this->scope = nullptr;
         this->branchc = 0;
+        this->strlitc = 0;
     }
 
     bool parser::parseable()
@@ -382,6 +383,85 @@ namespace asc
         return eval_if(current);
     }
 
+    evaluation_state parser::eval_hardcode(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*lcurrent != "@") // not a hardcode
+            return STATE_NEUTRAL;
+        lcurrent = lcurrent->next;
+        if (check_eof(lcurrent))
+            return STATE_SYNTAX_ERROR;
+        if (*lcurrent == "print") // hardcode print
+        {
+            lcurrent = lcurrent->next; // what to print
+            if (check_eof(lcurrent))
+                return STATE_SYNTAX_ERROR;
+            /*
+            if (lcurrent->type == asc::syntax_types::STRING_LITERAL)
+            {
+                // add constant
+                as << asc::data << "strlit" + std::to_string(strlitc) + " db " + *(lcurrent->value) + ", 0x00";
+                as.external("printf"); // import printf from C stdlib
+                as.instruct(scope->name(), "push rax");
+                as.instruct(scope->name(), "push rbp");
+                as.instruct(scope->name(), "mov rbp, rsp");
+                as.instruct(scope->name(), "sub rsp, 32");
+                as.instruct(scope->name(), "mov rcx, strlit" + std::to_string(strlitc++));
+                as.instruct(scope->name(), "call printf");
+                as.instruct(scope->name(), "add rsp, 32");
+                as.instruct(scope->name(), "mov rsp, rbp");
+                as.instruct(scope->name(), "pop rbp");
+                as.instruct(scope->name(), "pop rax"); // call to C stdlib printf
+            }
+            else if (lcurrent->type == asc::syntax_types::CONSTANT)
+            {
+                as << asc::data << "__constrepl__ db \"%d\", 0";
+                as.external("printf");
+                as.instruct(scope->name(), "push rax");
+                as.instruct(scope->name(), "push rbp");
+                as.instruct(scope->name(), "mov rbp, rsp");
+                as.instruct(scope->name(), "sub rsp, 32");
+                as.instruct(scope->name(), "mov rcx, __constrepl__");
+                as.instruct(scope->name(), "mov rdx, " + *(lcurrent->value));
+                as.instruct(scope->name(), "call printf");
+                as.instruct(scope->name(), "add rsp, 32");
+                as.instruct(scope->name(), "mov rsp, rbp");
+                as.instruct(scope->name(), "pop rbp");
+                as.instruct(scope->name(), "pop rax"); // call to C stdlib printf
+            }
+            else
+            */
+            as.instruct(scope->name(), "push rax");
+            evaluation_state es_ex = eval_expression(lcurrent, nullptr); // eval for exp and store in rax
+            if (es_ex != STATE_FOUND)
+            {
+                asc::err("expected expression", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            as << asc::data << "__constrepl__ db \"%d\", 0";
+            as.external("printf");
+            as.instruct(scope->name(), "push rbp");
+            as.instruct(scope->name(), "mov rbp, rsp");
+            as.instruct(scope->name(), "sub rsp, 32");
+            as.instruct(scope->name(), "mov rcx, __constrepl__");
+            as.instruct(scope->name(), "mov rdx, rax");
+            as.instruct(scope->name(), "call printf");
+            as.instruct(scope->name(), "add rsp, 32");
+            as.instruct(scope->name(), "mov rsp, rbp");
+            as.instruct(scope->name(), "pop rbp");
+            as.instruct(scope->name(), "pop rax");
+        }
+        current = lcurrent;
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::eval_hardcode()
+    {
+        asc::syntax_node* current = this->current;
+        return eval_hardcode(current);
+    }
+
     evaluation_state parser::eval_block_ending(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent, true))
@@ -618,7 +698,7 @@ namespace asc
             if (check_eof(lcurrent, true))
                 break;
             if (application == nullptr)
-                as.instruct(scope->name(), "push " + location); // preserve value in rax so a possible function call doesn't overwrite it
+                as.instruct(scope->name(), "push rax"); // preserve value in rax so a possible function call doesn't overwrite it
             if (eval_function_call(lcurrent) == STATE_FOUND)
             {
                 if (application != nullptr) // if an application is provided, it will be stored at its stack location
@@ -650,7 +730,7 @@ namespace asc
                 continue;
             }
             if (application == nullptr)
-                as.instruct(scope->name(), "pop " + location); // preserve value in rax so a possible function call doesn't overwrite it
+                as.instruct(scope->name(), "pop rax"); // preserve value in rax so a possible function call doesn't overwrite it
             //std::cout << "expression: function call: lcurrent tracker: " << *(lcurrent->value) << std::endl;
             asc::symbol*& symbol = symbols[*(lcurrent->value)];
             if (symbol != nullptr)

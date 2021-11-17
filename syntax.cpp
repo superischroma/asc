@@ -56,7 +56,8 @@ namespace asc
         "*",
         "/",
         "[",
-        "]"
+        "]",
+        "@"
     };
 
     const char* OPERATORS[] = {
@@ -193,6 +194,16 @@ namespace asc
     std::string syntax_node::stringify()
     {
         return "syntax_node{type=" + syntax_types::name(type) + ", value=" + (value != nullptr ? *value : "") + ", line=" + std::to_string(line) + "}";
+    }
+
+    bool syntax_node::operator==(std::string value)
+    {
+        return *(this->value) == value;
+    }
+
+    bool syntax_node::operator!=(std::string value)
+    {
+        return *(this->value) != value;
     }
 
     syntax_node::~syntax_node()

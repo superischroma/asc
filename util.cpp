@@ -1,5 +1,6 @@
 #include <iostream>
-#include <string>
+
+#include "util.h"
 
 namespace asc
 {
@@ -25,5 +26,44 @@ namespace asc
     bool ends_with(std::string& base, std::string&& test)
     {
         return ends_with(base, test);
+    }
+
+    std::map<std::string, std::string> map_cfg_file(std::ifstream& is)
+    {
+        std::map<std::string, std::string> map;
+        std::string key, value;
+        bool ek = true;
+        bool comment = false;
+        for (char c = is.get(); is.good(); c = is.get())
+        {
+            if (c == '\r')
+                continue;
+            if (c == '#' || c == ';')
+            {
+                comment = true;
+                continue;
+            }
+            if (c == '\n')
+            {
+                if (key.length() != 0)
+                    map[key] = value;
+                key.clear();
+                value.clear();
+                comment = false;
+                ek = true;
+                continue;
+            }
+            if (comment)
+                continue;
+            if (c == '=')
+            {
+                ek = false;
+                continue;
+            }
+            (ek ? key : value) += c;
+        }
+        if (key.length() != 0)
+            map[key] = value;
+        return map;
     }
 }

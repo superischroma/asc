@@ -50,6 +50,8 @@ namespace asc
 
         syntax_node(syntax_node* next, unsigned short type, std::string value, int line);
         std::string stringify();
+        bool operator==(std::string value);
+        bool operator!=(std::string value);
         ~syntax_node();
     };
 }

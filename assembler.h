@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <set>
 #include <stdexcept>
 
 #include "symbol.h"
@@ -40,6 +41,7 @@ namespace asc
     private:
         std::string data;
         std::string bss;
+        std::set<std::string> ext;
         std::map<std::string, subroutine*> subroutines;
     public:
         std::string entry;
@@ -50,6 +52,7 @@ namespace asc
         assembler& enter(std::string&& subroutine);
         assembler& instruct(std::string& subroutine, std::string instruction);
         assembler& instruct(std::string&& subroutine, std::string instruction);
+        assembler& external(std::string identifier);
         asc::subroutine*& sr(std::string& name, subroutine* parent);
         asc::subroutine*& sr(std::string& name);
         assembler& operator<<(std::string& line);
