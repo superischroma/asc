@@ -263,14 +263,13 @@ namespace asc
         lcurrent = lcurrent->next;
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
+        std::string name = scope->name();
+        as.sr(name)->alloc_delta(32); // allocate room on the stack for the function call
         as.instruct(scope->name(), "push rcx"); // make sure none of these values
         as.instruct(scope->name(), "push rdx"); // are modified during argument passing
         as.instruct(scope->name(), "push r8");
         as.instruct(scope->name(), "push r9");
 
-        as.instruct(scope->name(), "push rbp");
-        as.instruct(scope->name(), "mov rbp, rsp"); // preserve current stack frame
-        as.instruct(scope->name(), "sub rsp, 32"); // alloc 32 bytes of shadow space
         for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND && i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]); i++)
         {
             std::cout << "expression eval for argument variable" << std::endl;
@@ -291,13 +290,6 @@ namespace asc
         }
         as.instruct(scope->name(), "call " + identifier); // call the function
 
-        as.instruct(scope->name(), "mov rsp, rbp"); // restore the stack to its original state
-        as.instruct(scope->name(), "pop rbp");
-
-        as.instruct(scope->name(), "pop r9"); // make sure none of these values
-        as.instruct(scope->name(), "pop r8"); // are modified during argument passing
-        as.instruct(scope->name(), "pop rdx");
-        as.instruct(scope->name(), "pop rcx");
         if (lcurrent == nullptr) // unexpected end to arguments
         {
             asc::err("unexpected end to argument passing", i_line);
@@ -441,15 +433,11 @@ namespace asc
             }
             as << asc::data << "__constrepl__ db \"%d\", 0";
             as.external("printf");
-            as.instruct(scope->name(), "push rbp");
-            as.instruct(scope->name(), "mov rbp, rsp");
-            as.instruct(scope->name(), "sub rsp, 32");
+            std::string name = scope->name();
+            as.sr(name)->alloc_delta(32);
             as.instruct(scope->name(), "mov rcx, __constrepl__");
             as.instruct(scope->name(), "mov rdx, rax");
             as.instruct(scope->name(), "call printf");
-            as.instruct(scope->name(), "add rsp, 32");
-            as.instruct(scope->name(), "mov rsp, rbp");
-            as.instruct(scope->name(), "pop rbp");
             as.instruct(scope->name(), "pop rax");
         }
         current = lcurrent;
@@ -708,15 +696,16 @@ namespace asc
                     std::cout << application->name() << " and a location of ";
                 std::cout << location << std::endl;
                 ////std::cout << "expression: function call: " << *(lcurrent->value) << std::endl;
+                int a_size = 8;
                 std::string word = application != nullptr ?
-                        asc::get_word(asc::get_type_size(application->type)) + ' ' :
+                        asc::get_word(a_size = asc::get_type_size(application->type)) + ' ' :
                         "";
                 if (application == nullptr)
                 {
                     as.instruct(scope->name(), "mov rbx, rax"); // move function return value into rbx
                     as.instruct(scope->name(), "pop " + location); // restore value
                 }
-                std::string ret_val_reg = application != nullptr ? "rax" : "rbx";
+                std::string ret_val_reg = resolve_register(application != nullptr ? "rax" : "rbx", a_size);
                 if (oper == "+")
                     as.instruct(scope->name(), "add " + word + location + ", " + ret_val_reg);
                 else if (oper == "-")

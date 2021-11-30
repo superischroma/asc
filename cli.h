@@ -12,19 +12,20 @@ namespace asc
         const unsigned long long HELP = 1 << 1;
     }
 
-    typedef struct s_arg_result
+    typedef struct arg_result
     {
         std::vector<std::string> files;
         unsigned long long options;
+        std::string output_location;
     } arg_result;
 
-    typedef struct s_help_reference
+    typedef struct help_reference
     {
         std::string name;
         std::string description;
     } help_reference;
 
-    extern help_reference REFERENCE_OPTIONS[];
+    extern std::vector<help_reference> REFERENCE_OPTIONS;
 
     arg_result eval_args(int argc, char**& argv);
     bool has_option_set(arg_result& as, unsigned long long option);

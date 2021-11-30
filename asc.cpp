@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     {
         std::cout << "Usage: asc [options] file..." << std::endl;
         std::cout << "Options:" << std::endl;
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < asc::REFERENCE_OPTIONS.size(); i++)
         {
             asc::help_reference& hr = asc::REFERENCE_OPTIONS[i];
             std::cout << "  " << hr.name << "\t\t" << hr.description << std::endl;
@@ -69,12 +69,12 @@ int main(int argc, char* argv[])
     }
     for (auto const& file : args.files)
     {
-        if (asc::compile(std::string(argv[1])) == -1)
+        if (asc::compile(file) == -1)
             return -1;
     }
     if (SRC_LINKER == "gcc" || SRC_LINKER == "ld")
     {
-        std::string cmd = SRC_LINKER;
+        std::string cmd = SRC_LINKER + " -o " + args.output_location;
         for (auto& file : OBJECT_FILES)
             cmd += ' ' + file;
         system(cmd.c_str());
