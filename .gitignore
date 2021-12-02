@@ -39,3 +39,6 @@
 
 # GAS code from GNU compiler tests
 *.s
+
+# Journal entries for school project
+/journals

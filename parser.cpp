@@ -290,6 +290,11 @@ namespace asc
         }
         as.instruct(scope->name(), "call " + identifier); // call the function
 
+        as.instruct(scope->name(), "pop r9"); // make sure none of these values
+        as.instruct(scope->name(), "pop r8"); // are modified during argument passing
+        as.instruct(scope->name(), "pop rdx");
+        as.instruct(scope->name(), "pop rcx");
+
         if (lcurrent == nullptr) // unexpected end to arguments
         {
             asc::err("unexpected end to argument passing", i_line);
@@ -448,6 +453,59 @@ namespace asc
     {
         asc::syntax_node* current = this->current;
         return eval_hardcode(current);
+    }
+
+    evaluation_state parser::eval_while(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*(lcurrent->value) != "while") // not a while loop
+            return STATE_NEUTRAL;
+        lcurrent = lcurrent->next;
+        if (check_eof(lcurrent))
+            return STATE_SYNTAX_ERROR;
+        if (*(lcurrent->value) != "(")
+        {
+            asc::err("expected left parenthesis to start while condition");
+            return STATE_SYNTAX_ERROR;
+        }
+        evaluation_state ev_ex = eval_expression(lcurrent = lcurrent->next, nullptr);
+        if (ev_ex == STATE_SYNTAX_ERROR)
+            return STATE_SYNTAX_ERROR;
+        if (ev_ex == STATE_NEUTRAL) // if there was no expression found
+        {
+            asc::err("expression expected");
+            return STATE_SYNTAX_ERROR;
+        }
+        lcurrent = lcurrent->next; // move past left parenthesis
+        //// TODO: ALLOW FOR ONE LINE WHILE LOOPS
+        if (check_eof(lcurrent))
+            return STATE_SYNTAX_ERROR;
+        lcurrent = lcurrent->next; // move past left brace, and into the if statement
+        //// END TODO
+        std::string loopbname = 'B' + std::to_string(++this->branchc); // if branch name
+        std::string aftername = 'B' + std::to_string(++this->branchc); // after the if statement, plus split the current label
+        as.instruct(scope->name(), "cmp rax, 0");       // if expression is not false
+        as.instruct(scope->name(), "jne " + loopbname);   // jump to if branch
+        as.instruct(scope->name(), "jmp " + aftername); // otherwise, jump to after branch
+        std::string sname = scope->name();
+        asc::subroutine*& csr = as.sr(sname); // current subroutine
+        this->scope->split_b = this->branchc; // split the function by the after branch
+        csr->ending = ""; // get rid of the ending for our current sr, because it will never be reached
+        asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
+        as.instruct(loopb->name, "push rax"); // push the condition
+        asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
+         // checking the condition and continuing if it's true
+        loopb->ending = "pop rax\n\tcmp rax, 0\n\tjne " + loopbname + "\n\tjmp " + aftername;
+        this->scope = new asc::symbol(loopbname, "while", "public", this->scope); // move scope into while loop
+        current = lcurrent; // bring current up to speed
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::eval_while()
+    {
+        asc::syntax_node* current = this->current;
+        return eval_while(current);
     }
 
     evaluation_state parser::eval_block_ending(syntax_node*& lcurrent)

@@ -148,6 +148,12 @@ namespace asc
                 continue;
             if (es_hc == asc::STATE_SYNTAX_ERROR)
                 return -1;
+            asc::evaluation_state es_wl = ps.eval_while();
+            std::cout << "while: " << (int) es_wl << std::endl;
+            if (es_wl == asc::STATE_FOUND)
+                continue;
+            if (es_wl == asc::STATE_SYNTAX_ERROR)
+                return -1;
             asc::evaluation_state es_fc = ps.eval_function_call();
             std::cout << "function call: " << (int) es_fc << std::endl;
             if (es_fc == asc::STATE_FOUND)

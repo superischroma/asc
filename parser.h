@@ -51,6 +51,8 @@ namespace asc
         evaluation_state eval_if();
         evaluation_state eval_hardcode(syntax_node*& lcurrent);
         evaluation_state eval_hardcode();
+        evaluation_state eval_while(syntax_node*& lcurrent);
+        evaluation_state eval_while();
         evaluation_state eval_block_ending(syntax_node*& lcurrent);
         evaluation_state eval_block_ending();
         evaluation_state eval_variable_decl_def(syntax_node*& lcurrent);
