@@ -192,9 +192,9 @@ namespace asc
         if (sl.length() == 0) // not even a quote LOL
             return sl;
         if (sl[0] == '"') // beginning quote
-            sl.erase(sl.cbegin());
+            sl.erase(sl.begin());
         if (sl[sl.length() - 1] == '"') // end quote
-            sl.erase(sl.cend());
+            sl.erase(sl.end());
         return sl;
     }
 

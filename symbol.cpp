@@ -1,7 +1,27 @@
+#include <string>
+
 #include "symbol.h"
 
 namespace asc
 {
+    namespace symbol_types
+    {
+        std::string name(symbol_type st)
+        {
+            switch (st)
+            {
+                case LOCAL_VARIABLE: return "VARIABLE";
+                case GLOBAL_VARIABLE: return "GLOBAL_VARIABLE";
+                case FUNCTION_VARIABLE: return "FUNCTION_VARIABLE";
+                case FUNCTION: return "FUNCTION";
+                case IF_BLOCK: return "IF_BLOCK";
+                case WHILE_BLOCK: return "WHILE_BLOCK";
+                case GENERIC_BLOCK: return "GENERIC_BLOCK";
+                default: return "UNNAMED_SYMBOL_TYPE_" + std::to_string(st);
+            }
+        }
+    }
+
     symbol::symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope)
     {
         this->m_name = name;

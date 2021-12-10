@@ -63,9 +63,10 @@ namespace asc
         evaluation_state eval_use();
         evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
         evaluation_state eval_expression();
-        int preserve_value(std::string location);
+        int preserve_value(std::string location, symbol* scope = nullptr);
         int reserve_data_space(int size);
         void retrieve_value(int position, std::string storage);
+        void retrieve_value(std::string storage);
         ~parser();
     };
 }

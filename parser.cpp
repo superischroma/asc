@@ -36,6 +36,8 @@ namespace asc
         this->scope = nullptr;
         this->branchc = 0;
         this->strlitc = 0;
+        this->dpc = 0;
+        this->dpm = 0;
     }
 
     bool parser::parseable()
@@ -458,12 +460,9 @@ namespace asc
         this->scope->split_b = this->branchc; // split the function by the after branch
         csr->ending = ""; // get rid of the ending for our current sr, because it will never be reached
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
-        int p_cond_rax = this->preserve_value("rax"); // condition of while loop preservation
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
-         // checking the condition and continuing if it's true
-        loopb->ending = "mov rax, [rsp - " + std::to_string(p_cond_rax) + "]\n\tcmp rax, 0\n\tjne "
-            + loopbname + "\n\tjmp " + aftername;
         this->scope = new asc::symbol(loopbname, "while", symbol_types::WHILE_BLOCK, "public", this->scope); // move scope into while loop
+        this->preserve_value("rax", this->scope); // condition of while loop preservation
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -501,8 +500,16 @@ namespace asc
         }
         if (scope->s_type == symbol_types::FUNCTION) // if we're scoping out of a function
         {
+            std::cout << "preserved: " << dpm << std::endl;
             as.sr(scope->name())->preserved_data = dpm; // set the max
             this->dpc = this->dpm = 0; // reset the dpc and dpm to be used later
+        }
+        if (scope->s_type == symbol_types::WHILE_BLOCK)
+        {
+            retrieve_value("rax");
+            as.instruct(scope->name(), "cmp rax, 0");
+            as.instruct(scope->name(), "jne " + scope->name());
+            as.instruct(scope->name(), "jmp B" + std::to_string(std::stoi(scope->name().substr(1)) + 1));
         }
         scope = scope->scope; // scope out of function
         lcurrent = lcurrent->next;
@@ -707,7 +714,7 @@ namespace asc
             if (check_eof(lcurrent, true))
                 break;
             if (application == nullptr)
-                as.instruct(scope->name(), "push rax"); // preserve value in rax so a possible function call doesn't overwrite it
+                preserve_value("rax"); // preserve value in rax so a possible function call doesn't overwrite it
             if (eval_function_call(lcurrent) == STATE_FOUND)
             {
                 if (application != nullptr) // if an application is provided, it will be stored at its stack location
@@ -724,7 +731,7 @@ namespace asc
                 if (application == nullptr)
                 {
                     as.instruct(scope->name(), "mov rbx, rax"); // move function return value into rbx
-                    as.instruct(scope->name(), "pop " + location); // restore value
+                    retrieve_value("rax"); // restore value
                 }
                 std::string ret_val_reg = resolve_register(application != nullptr ? "rax" : "rbx", a_size);
                 if (oper == "+")
@@ -740,7 +747,7 @@ namespace asc
                 continue;
             }
             if (application == nullptr)
-                as.instruct(scope->name(), "pop rax"); // preserve value in rax so a possible function call doesn't overwrite it
+                retrieve_value("rax"); // preserve value in rax so a possible function call doesn't overwrite it
             //std::cout << "expression: function call: lcurrent tracker: " << *(lcurrent->value) << std::endl;
             asc::symbol*& symbol = symbols[*(lcurrent->value)];
             if (symbol != nullptr)
@@ -773,12 +780,12 @@ namespace asc
         return eval_expression(current, nullptr);
     }
 
-    int parser::preserve_value(std::string location)
+    int parser::preserve_value(std::string location, symbol* scope)
     {
         int register_size = asc::get_register_size(location);
         int position = 32 + (dpc += register_size);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        as.instruct(scope->name(), "mov [rbp - " + std::to_string(position) + "], " + location);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp - " + std::to_string(position) + "], " + location);
         return position;
     }
 
@@ -791,7 +798,14 @@ namespace asc
 
     void parser::retrieve_value(int position, std::string storage)
     {
-        as.instruct(scope->name(), "mov " + storage + ", [rsp - " + std::to_string(position) + ']');
+        as.instruct(scope->name(), "mov " + storage + ", [rbp - " + std::to_string(position) + ']');
+        dpc -= asc::get_register_size(storage);
+    }
+
+    // off the top
+    void parser::retrieve_value(std::string storage)
+    {
+        retrieve_value(dpc + 32, storage);
     }
 
     parser::~parser()

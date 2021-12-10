@@ -116,7 +116,7 @@ namespace asc
             space = 32 /* shadow space */ + preserved_data;
             str += "\n\tpush rbp\n\tmov rbp, rsp";
             if (space != 0)
-                str += "\n\tsub rsp, " + std::to_string(space);
+                str += "\n\tsub rsp, " + std::to_string(32 /* shadow space */ + preserved_data);
         }
         str += instructions;
         if ((this->parent != nullptr &&
@@ -128,10 +128,8 @@ namespace asc
                 (this->children == nullptr ||
                     (this->children != nullptr && this->children->size() == 0))))
         {
-            space = 32 /* shadow space */ + parent->preserved_data;
-            if (this->parent != nullptr && space != 0)
-                str += "\n\tadd rsp, " + std::to_string(space);
-            else if (space != 0)
+            space = 32 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
+            if (this->parent != nullptr || space != 0)
                 str += "\n\tadd rsp, " + std::to_string(space);
             str += "\n\tpop rbp";
         }
@@ -181,6 +179,7 @@ namespace asc
     assembler& assembler::external(std::string identifier)
     {
         ext.insert(identifier);
+        return *this;
     }
 
     asc::subroutine*& assembler::sr(std::string& name, subroutine* parent)
