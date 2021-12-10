@@ -23,16 +23,17 @@ namespace asc
     public:
         std::string name;
         std::string instructions;
-        int stackalloc;
-        int next_local_offset;
+        //int stackalloc;
+        int preserved_data;
         std::string ending;
         subroutine* parent;
         std::vector<subroutine*>* children;
 
         subroutine(std::string name, subroutine* parent);
-        subroutine& alloc_delta(int bs);
+        //subroutine& alloc_delta(int bs);
         subroutine& add_child(subroutine* sr);
         std::string construct();
+        int add_preserved_data();
         ~subroutine();
     };
 
@@ -55,6 +56,7 @@ namespace asc
         assembler& external(std::string identifier);
         asc::subroutine*& sr(std::string& name, subroutine* parent);
         asc::subroutine*& sr(std::string& name);
+        asc::subroutine*& sr(std::string&& name);
         assembler& operator<<(std::string& line);
         assembler& operator<<(std::string&& line);
         assembler& operator<<(assembler& (*mod)(assembler& as));

@@ -36,6 +36,8 @@ namespace asc
 
     int get_type_size(std::string& prim);
 
+    int get_register_size(std::string& reg);
+
     std::string get_word(int size);
 
     std::string& unwrap(std::string& sl);

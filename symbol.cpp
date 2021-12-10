@@ -2,13 +2,14 @@
 
 namespace asc
 {
-    symbol::symbol(std::string name, std::string type, std::string visibility, symbol*& scope)
+    symbol::symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
+        this->s_type = s_type;
         this->visibility = visibility;
         this->scope = scope;
-        this->stack_m = 0;
+        this->offset = 0;
         this->split_b = 0;
     }
 

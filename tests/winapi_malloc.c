@@ -8,6 +8,6 @@ int main()
     pool[1] = 'i';
     pool[2] = '\0';
     HANDLE stdout = GetStdHandle(-11);
-    WriteFile(stdout, pool, 3, NULL, NULL);
+    WriteFile(stdout, pool, 2, NULL, NULL);
     HeapFree(heap, 0x00, (void*) pool);
 }

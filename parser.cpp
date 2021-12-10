@@ -171,7 +171,7 @@ namespace asc
             asc::err("symbol is already defined", i_line);
             return STATE_SYNTAX_ERROR;
         }
-        function_symbol = new asc::symbol(identifier, t, v, scope);
+        function_symbol = new asc::symbol(identifier, t, symbol_types::FUNCTION, v, scope);
         //std::cout << "defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -202,10 +202,10 @@ namespace asc
                 asc::err("symbol is already defined", ai_line);
                 return STATE_SYNTAX_ERROR;
             }
-            a_symbol = new asc::symbol(a_identifier, at, "public", function_symbol);
-            a_symbol->stack_m = s += 8;
+            a_symbol = new asc::symbol(a_identifier, at, symbol_types::FUNCTION_VARIABLE, "public", function_symbol);
+            a_symbol->offset = s += 8;
             if (c <= 4)
-                as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->stack_m) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
+                as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
             //std::cout << "defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -264,11 +264,12 @@ namespace asc
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
         std::string name = scope->name();
-        as.sr(name)->alloc_delta(32); // allocate room on the stack for the function call
-        as.instruct(scope->name(), "push rcx"); // make sure none of these values
-        as.instruct(scope->name(), "push rdx"); // are modified during argument passing
-        as.instruct(scope->name(), "push r8");
-        as.instruct(scope->name(), "push r9");
+        int p_rcx = this->preserve_value("rcx");
+        int p_rdx = this->preserve_value("rdx");
+        int p_r8 = this->preserve_value("r8");
+        int p_r9 = this->preserve_value("r9");
+        // make sure none of these values
+        // are modified during argument passing
 
         for (int i = 0; lcurrent != nullptr && eval_exp_ending(lcurrent) != STATE_FOUND && i < sizeof(ARG_REGISTER_SEQUENCE) / sizeof(ARG_REGISTER_SEQUENCE[0]); i++)
         {
@@ -290,10 +291,10 @@ namespace asc
         }
         as.instruct(scope->name(), "call " + identifier); // call the function
 
-        as.instruct(scope->name(), "pop r9"); // make sure none of these values
-        as.instruct(scope->name(), "pop r8"); // are modified during argument passing
-        as.instruct(scope->name(), "pop rdx");
-        as.instruct(scope->name(), "pop rcx");
+        this->retrieve_value(p_rcx, "rcx");
+        this->retrieve_value(p_rdx, "rdx");
+        this->retrieve_value(p_r8, "r8");
+        this->retrieve_value(p_r9, "r9");
 
         if (lcurrent == nullptr) // unexpected end to arguments
         {
@@ -369,7 +370,7 @@ namespace asc
         asc::subroutine*& ifb = as.sr(ifbname, csr); // if block subroutine
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
         ifb->ending = "jmp " + aftername; // setting ending of if block to be the jump to the after block
-        this->scope = new asc::symbol(ifbname, "if", "public", this->scope); // move scope into if statement
+        this->scope = new asc::symbol(ifbname, "if", symbol_types::IF_BLOCK, "public", this->scope); // move scope into if statement
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -394,42 +395,7 @@ namespace asc
             lcurrent = lcurrent->next; // what to print
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
-            /*
-            if (lcurrent->type == asc::syntax_types::STRING_LITERAL)
-            {
-                // add constant
-                as << asc::data << "strlit" + std::to_string(strlitc) + " db " + *(lcurrent->value) + ", 0x00";
-                as.external("printf"); // import printf from C stdlib
-                as.instruct(scope->name(), "push rax");
-                as.instruct(scope->name(), "push rbp");
-                as.instruct(scope->name(), "mov rbp, rsp");
-                as.instruct(scope->name(), "sub rsp, 32");
-                as.instruct(scope->name(), "mov rcx, strlit" + std::to_string(strlitc++));
-                as.instruct(scope->name(), "call printf");
-                as.instruct(scope->name(), "add rsp, 32");
-                as.instruct(scope->name(), "mov rsp, rbp");
-                as.instruct(scope->name(), "pop rbp");
-                as.instruct(scope->name(), "pop rax"); // call to C stdlib printf
-            }
-            else if (lcurrent->type == asc::syntax_types::CONSTANT)
-            {
-                as << asc::data << "__constrepl__ db \"%d\", 0";
-                as.external("printf");
-                as.instruct(scope->name(), "push rax");
-                as.instruct(scope->name(), "push rbp");
-                as.instruct(scope->name(), "mov rbp, rsp");
-                as.instruct(scope->name(), "sub rsp, 32");
-                as.instruct(scope->name(), "mov rcx, __constrepl__");
-                as.instruct(scope->name(), "mov rdx, " + *(lcurrent->value));
-                as.instruct(scope->name(), "call printf");
-                as.instruct(scope->name(), "add rsp, 32");
-                as.instruct(scope->name(), "mov rsp, rbp");
-                as.instruct(scope->name(), "pop rbp");
-                as.instruct(scope->name(), "pop rax"); // call to C stdlib printf
-            }
-            else
-            */
-            as.instruct(scope->name(), "push rax");
+            int pp_rax = this->preserve_value("rax");
             evaluation_state es_ex = eval_expression(lcurrent, nullptr); // eval for exp and store in rax
             if (es_ex != STATE_FOUND)
             {
@@ -439,11 +405,10 @@ namespace asc
             as << asc::data << "__constrepl__ db \"%d\", 0";
             as.external("printf");
             std::string name = scope->name();
-            as.sr(name)->alloc_delta(32);
             as.instruct(scope->name(), "mov rcx, __constrepl__");
             as.instruct(scope->name(), "mov rdx, rax");
             as.instruct(scope->name(), "call printf");
-            as.instruct(scope->name(), "pop rax");
+            this->retrieve_value(pp_rax, "rax");
         }
         current = lcurrent;
         return STATE_FOUND;
@@ -493,11 +458,12 @@ namespace asc
         this->scope->split_b = this->branchc; // split the function by the after branch
         csr->ending = ""; // get rid of the ending for our current sr, because it will never be reached
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
-        as.instruct(loopb->name, "push rax"); // push the condition
+        int p_cond_rax = this->preserve_value("rax"); // condition of while loop preservation
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
          // checking the condition and continuing if it's true
-        loopb->ending = "pop rax\n\tcmp rax, 0\n\tjne " + loopbname + "\n\tjmp " + aftername;
-        this->scope = new asc::symbol(loopbname, "while", "public", this->scope); // move scope into while loop
+        loopb->ending = "mov rax, [rsp - " + std::to_string(p_cond_rax) + "]\n\tcmp rax, 0\n\tjne "
+            + loopbname + "\n\tjmp " + aftername;
+        this->scope = new asc::symbol(loopbname, "while", symbol_types::WHILE_BLOCK, "public", this->scope); // move scope into while loop
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -532,6 +498,11 @@ namespace asc
             }
             else
                 ++it;
+        }
+        if (scope->s_type == symbol_types::FUNCTION) // if we're scoping out of a function
+        {
+            as.sr(scope->name())->preserved_data = dpm; // set the max
+            this->dpc = this->dpm = 0; // reset the dpc and dpm to be used later
         }
         scope = scope->scope; // scope out of function
         lcurrent = lcurrent->next;
@@ -597,13 +568,9 @@ namespace asc
                 current = lcurrent; // and bring current up to speed
                 return STATE_FOUND;
             }
-            var_symbol = new asc::symbol(identifier, t, v, scope); // define symbol
+            var_symbol = new asc::symbol(identifier, t, symbol_types::LOCAL_VARIABLE, v, scope); // define symbol
             if (scope != nullptr) // if we're not in global scope
-            {
-                std::string name = scope->name();
-                as.sr(name)->alloc_delta(t_size);
-                var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
-            }
+                var_symbol->offset = this->reserve_data_space(get_type_size(t)); // set stack location
             //std::cout << "declared " << t << ' ' << identifier << " without definition" << std::endl;
             lcurrent = lcurrent->next; // move it along after the semicolon
             current = lcurrent; // and bring current up to speed
@@ -620,13 +587,9 @@ namespace asc
         }
         if (t_state != STATE_NEUTRAL)
         {
-            var_symbol = new asc::symbol(identifier, t, v, scope);
+            var_symbol = new asc::symbol(identifier, t, symbol_types::LOCAL_VARIABLE, v, scope);
             if (scope != nullptr) // if we're not in global scope
-            {
-                std::string name = scope->name();
-                as.sr(name)->alloc_delta(t_size);
-                var_symbol->stack_m = scope->stack_m -= t_size; // set stack location
-            }
+                var_symbol->offset = this->reserve_data_space(get_type_size(t));
         }
         //std::cout << "declared " << t << ' ' << identifier << " with definition " << std::endl;
         lcurrent = lcurrent->next; // and now, expression evaluation
@@ -685,7 +648,7 @@ namespace asc
     {
         std::string location = "rax"; // ambiguous expression evaluations will be stored in rax
         if (application != nullptr) // if an application is provided, it will be stored at its stack location
-            location = "[rbp + " + std::to_string(application->stack_m) + "]";
+            location = "[rbp + " + std::to_string(application->offset) + "]";
         std::cout << "start of expression: ";
         if (application != nullptr)
             std::cout << application->name() << ", ";
@@ -748,7 +711,7 @@ namespace asc
             if (eval_function_call(lcurrent) == STATE_FOUND)
             {
                 if (application != nullptr) // if an application is provided, it will be stored at its stack location
-                    location = "[rbp + " + std::to_string(application->stack_m) + "]";
+                    location = "[rbp + " + std::to_string(application->offset) + "]";
                 std::cout << "function call validated from expression with an application of ";
                 if (application != nullptr)
                     std::cout << application->name() << " and a location of ";
@@ -782,7 +745,7 @@ namespace asc
             asc::symbol*& symbol = symbols[*(lcurrent->value)];
             if (symbol != nullptr)
             {
-                std::string symbol_loc = "[rbp + " + std::to_string(symbol->stack_m) + "]";
+                std::string symbol_loc = "[rbp + " + std::to_string(symbol->offset) + "]";
                 std::string res = asc::resolve_register(location, asc::get_type_size(symbol->type));
                 std::string word = asc::get_word(asc::get_type_size(symbol->type));
                 if (res != "-1")
@@ -808,6 +771,27 @@ namespace asc
     {
         syntax_node* current = this->current;
         return eval_expression(current, nullptr);
+    }
+
+    int parser::preserve_value(std::string location)
+    {
+        int register_size = asc::get_register_size(location);
+        int position = 32 + (dpc += register_size);
+        if (dpc > dpm) dpm = dpc; // update max if needed
+        as.instruct(scope->name(), "mov [rbp - " + std::to_string(position) + "], " + location);
+        return position;
+    }
+
+    int parser::reserve_data_space(int size)
+    {
+        int position = 32 + (dpc += size);
+        if (dpc > dpm) dpm = dpc; // update max if needed
+        return position;
+    }
+
+    void parser::retrieve_value(int position, std::string storage)
+    {
+        as.instruct(scope->name(), "mov " + storage + ", [rsp - " + std::to_string(position) + ']');
     }
 
     parser::~parser()

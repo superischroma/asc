@@ -157,6 +157,23 @@ namespace asc
         return 8;
     }
 
+    int get_register_size(std::string& reg)
+    {
+        if (reg.length() < 2)
+            return -1;
+        char& first = reg[0];
+        char& last = reg[reg.length() - 1];
+        if (first == 'r') // 64-bit register (rax, rbx, rcx, rdx, etc...)
+            return 8;
+        if (first == 'e' || last == 'd') // 32-bit register (eax, ebx, ecx, edx, etc...)
+            return 4;
+        if (last == 'x' || last == 'i' || last == 'p' || last == 'w') // 16-bit register (ax, bx, cx, dx, etc...)
+            return 2;
+        if (last == 'l' || last == 'b') // 8-bit register (al, bl, cl, dl, etc...)
+            return 1;
+        return -1;
+    }
+
     std::string get_word(int size)
     {
         if (size == 1)

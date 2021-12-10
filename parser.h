@@ -27,6 +27,8 @@ namespace asc
         symbol* scope; // scope of next tokens, null if global
         int branchc; // counter for branches
         int strlitc;
+        int dpc; // data preservation counter (how much data do we need to preserve right now?)
+        int dpm; // data preservation max (how many will we need at a time)
 
         parser(syntax_node* root);
         bool parseable();
@@ -61,6 +63,9 @@ namespace asc
         evaluation_state eval_use();
         evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
         evaluation_state eval_expression();
+        int preserve_value(std::string location);
+        int reserve_data_space(int size);
+        void retrieve_value(int position, std::string storage);
         ~parser();
     };
 }

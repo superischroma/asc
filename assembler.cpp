@@ -81,8 +81,7 @@ namespace asc
     subroutine::subroutine(std::string name, subroutine* parent)
     {
         this->name = name;
-        this->stackalloc = 0;
-        this->next_local_offset = 0;
+        this->preserved_data = 0;
         this->ending = "ret";
         this->parent = parent;
         this->children = nullptr;
@@ -90,14 +89,14 @@ namespace asc
             parent->add_child(this);
     }
 
-    subroutine& subroutine::alloc_delta(int bs)
+    /*subroutine& subroutine::alloc_delta(int bs)
     {
         if (this->parent == nullptr)
             this->stackalloc += bs;
         else
             this->parent->stackalloc += bs;
         return *this;
-    }
+    }*/
 
     subroutine& subroutine::add_child(subroutine* sr)
     {
@@ -111,11 +110,13 @@ namespace asc
     std::string subroutine::construct()
     {
         std::string str;
+        int space;
         if (this->parent == nullptr)
         {
+            space = 32 /* shadow space */ + preserved_data;
             str += "\n\tpush rbp\n\tmov rbp, rsp";
-            if (this->stackalloc != 0)
-                str += "\n\tsub rsp, " + std::to_string(this->stackalloc);
+            if (space != 0)
+                str += "\n\tsub rsp, " + std::to_string(space);
         }
         str += instructions;
         if ((this->parent != nullptr &&
@@ -127,10 +128,11 @@ namespace asc
                 (this->children == nullptr ||
                     (this->children != nullptr && this->children->size() == 0))))
         {
-            if (this->parent != nullptr && this->parent->stackalloc != 0)
-                str += "\n\tadd rsp, " + std::to_string(this->parent->stackalloc);
-            else if (this->stackalloc != 0)
-                str += "\n\tadd rsp, " + std::to_string(this->stackalloc);
+            space = 32 /* shadow space */ + parent->preserved_data;
+            if (this->parent != nullptr && space != 0)
+                str += "\n\tadd rsp, " + std::to_string(space);
+            else if (space != 0)
+                str += "\n\tadd rsp, " + std::to_string(space);
             str += "\n\tpop rbp";
         }
         if (ending.length() != 0)
@@ -195,6 +197,11 @@ namespace asc
         if (sr == nullptr)
             sr = new asc::subroutine(name, nullptr);
         return sr;
+    }
+
+    asc::subroutine*& assembler::sr(std::string&& name)
+    {
+        return sr(name);
     }
 
     assembler& assembler::operator<<(std::string& line)

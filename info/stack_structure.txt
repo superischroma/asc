@@ -1,0 +1,6 @@
+Stack structure for the entire program
+[rsp - 0] to [rsp - 32] :: Shadow space for function calls (x64 calling convention)
+[rsp - 32] to [rsp - X] :: Value preservation (nested function calls, loop conditions, etc.)
+[rsp - X] to [rsp - Y] :: Local variables
+X = Top of preserved values
+Y = Top of local variables
