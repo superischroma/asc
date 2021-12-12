@@ -1,8 +1,6 @@
 public int main()
 {
-    while (1)
-    {
-        @print 0;
-    }
-    #@print 1;
+    int i = 0;
+    i = i - 1;
+    @print i;
 }

@@ -113,10 +113,13 @@ namespace asc
         int space;
         if (this->parent == nullptr)
         {
-            space = 32 /* shadow space */ + preserved_data;
+            std::cout << "preserved for " << name << ": " << preserved_data << std::endl;
+            space = 40 /* shadow space */ + preserved_data;
+            space += (space % 16); // 16-byte alignment for calling convention
+            std::cout << "space: " << space << std::endl;
             str += "\n\tpush rbp\n\tmov rbp, rsp";
             if (space != 0)
-                str += "\n\tsub rsp, " + std::to_string(32 /* shadow space */ + preserved_data);
+                str += "\n\tsub rsp, " + std::to_string(space);
         }
         str += instructions;
         if ((this->parent != nullptr &&
@@ -128,7 +131,9 @@ namespace asc
                 (this->children == nullptr ||
                     (this->children != nullptr && this->children->size() == 0))))
         {
-            space = 32 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
+            std::cout << "preserved for " << name << ": " << preserved_data << std::endl;
+            space = 40 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
+            space += (space % 16); // 16-byte alignment for calling convention
             if (this->parent != nullptr || space != 0)
                 str += "\n\tadd rsp, " + std::to_string(space);
             str += "\n\tpop rbp";

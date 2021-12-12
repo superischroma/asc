@@ -207,7 +207,7 @@ namespace asc
             a_symbol = new asc::symbol(a_identifier, at, symbol_types::FUNCTION_VARIABLE, "public", function_symbol);
             a_symbol->offset = s += 8;
             if (c <= 4)
-                as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
+                as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp - " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
             //std::cout << "defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -500,8 +500,8 @@ namespace asc
         }
         if (scope->s_type == symbol_types::FUNCTION) // if we're scoping out of a function
         {
-            std::cout << "preserved: " << dpm << std::endl;
-            as.sr(scope->name())->preserved_data = dpm; // set the max
+            std::cout << "updating preserved for " << scope->m_name << ": " << dpm << std::endl;
+            as.sr(scope->m_name)->preserved_data = dpm; // set the max
             this->dpc = this->dpm = 0; // reset the dpc and dpm to be used later
         }
         if (scope->s_type == symbol_types::WHILE_BLOCK)
@@ -511,6 +511,10 @@ namespace asc
             as.instruct(scope->name(), "jne " + scope->name());
             as.instruct(scope->name(), "jmp B" + std::to_string(std::stoi(scope->name().substr(1)) + 1));
         }
+        if (scope->scope == nullptr)
+            std::cout << "scoping out of " << scope->m_name << " into global scope" << std::endl;
+        else
+            std::cout << "scoping out of " << scope->m_name << " into " << scope->scope->m_name << std::endl;
         scope = scope->scope; // scope out of function
         lcurrent = lcurrent->next;
         current = lcurrent;
@@ -655,7 +659,7 @@ namespace asc
     {
         std::string location = "rax"; // ambiguous expression evaluations will be stored in rax
         if (application != nullptr) // if an application is provided, it will be stored at its stack location
-            location = "[rbp + " + std::to_string(application->offset) + "]";
+            location = "[rbp - " + std::to_string(application->offset) + "]";
         std::cout << "start of expression: ";
         if (application != nullptr)
             std::cout << application->name() << ", ";
@@ -718,7 +722,7 @@ namespace asc
             if (eval_function_call(lcurrent) == STATE_FOUND)
             {
                 if (application != nullptr) // if an application is provided, it will be stored at its stack location
-                    location = "[rbp + " + std::to_string(application->offset) + "]";
+                    location = "[rbp - " + std::to_string(application->offset) + "]";
                 std::cout << "function call validated from expression with an application of ";
                 if (application != nullptr)
                     std::cout << application->name() << " and a location of ";
@@ -752,7 +756,7 @@ namespace asc
             asc::symbol*& symbol = symbols[*(lcurrent->value)];
             if (symbol != nullptr)
             {
-                std::string symbol_loc = "[rbp + " + std::to_string(symbol->offset) + "]";
+                std::string symbol_loc = "[rbp - " + std::to_string(symbol->offset) + "]";
                 std::string res = asc::resolve_register(location, asc::get_type_size(symbol->type));
                 std::string word = asc::get_word(asc::get_type_size(symbol->type));
                 if (res != "-1")
@@ -783,7 +787,7 @@ namespace asc
     int parser::preserve_value(std::string location, symbol* scope)
     {
         int register_size = asc::get_register_size(location);
-        int position = 32 + (dpc += register_size);
+        int position = 40 + (dpc += register_size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp - " + std::to_string(position) + "], " + location);
         return position;
@@ -791,7 +795,7 @@ namespace asc
 
     int parser::reserve_data_space(int size)
     {
-        int position = 32 + (dpc += size);
+        int position = 40 + (dpc += size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         return position;
     }
@@ -805,7 +809,7 @@ namespace asc
     // off the top
     void parser::retrieve_value(std::string storage)
     {
-        retrieve_value(dpc + 32, storage);
+        retrieve_value(dpc + 40, storage);
     }
 
     parser::~parser()

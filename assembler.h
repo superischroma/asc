@@ -33,7 +33,6 @@ namespace asc
         //subroutine& alloc_delta(int bs);
         subroutine& add_child(subroutine* sr);
         std::string construct();
-        int add_preserved_data();
         ~subroutine();
     };
 
