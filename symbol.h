@@ -2,6 +2,9 @@
 #define SYMBOL_H
 
 #include <iostream>
+#include <string>
+
+#include "syntax.h"
 
 namespace asc
 {
@@ -27,6 +30,7 @@ namespace asc
         symbol_type s_type;
         std::string visibility;
         symbol* scope;
+        syntax_node* helper;
         int offset;
         int split_b;
         

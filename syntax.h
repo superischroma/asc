@@ -4,9 +4,15 @@
 #include <string>
 #include <type_traits>
 
+namespace asc // Forward declarations
+{
+    class syntax_node;
+}
+
 #include "assembler.h"
 #include "symbol.h"
 #include "logger.h"
+#include "util.h"
 
 namespace asc
 {

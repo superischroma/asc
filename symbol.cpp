@@ -1,6 +1,5 @@
-#include <string>
-
 #include "symbol.h"
+#include "syntax.h"
 
 namespace asc
 {
@@ -29,6 +28,7 @@ namespace asc
         this->s_type = s_type;
         this->visibility = visibility;
         this->scope = scope;
+        this->helper = nullptr;
         this->offset = 0;
         this->split_b = 0;
     }

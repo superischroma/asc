@@ -27,6 +27,8 @@ namespace asc
 
     register_resolvable resolve_register(register_resolvable& identifier, int size)
     {
+        if (identifier.find("[rbp") != std::string::npos) // it's not a register lol
+            return "-1";
         int lindex = -1;
         if (size == 1)
             lindex = 3;
@@ -38,22 +40,6 @@ namespace asc
             lindex = 0;
         else
             return "-1";
-        if (identifier.find('a') != std::string::npos)
-            return REGISTER_TABLE[0 + lindex];
-        if (identifier.find('b') != std::string::npos)
-            return REGISTER_TABLE[4 + lindex];
-        if (identifier.find('c') != std::string::npos)
-            return REGISTER_TABLE[8 + lindex];
-        if (identifier.find('d') != std::string::npos)
-            return REGISTER_TABLE[12 + lindex];
-        if (identifier.find("si") != std::string::npos)
-            return REGISTER_TABLE[16 + lindex];
-        if (identifier.find("di") != std::string::npos)
-            return REGISTER_TABLE[20 + lindex];
-        if (identifier.find("bp") != std::string::npos)
-            return REGISTER_TABLE[24 + lindex];
-        if (identifier.find("sp") != std::string::npos)
-            return REGISTER_TABLE[28 + lindex];
         if (identifier.find("r8") != std::string::npos)
             return REGISTER_TABLE[32 + lindex];
         if (identifier.find("r9") != std::string::npos)
@@ -70,6 +56,22 @@ namespace asc
             return REGISTER_TABLE[56 + lindex];
         if (identifier.find("r15") != std::string::npos)
             return REGISTER_TABLE[60 + lindex];
+        if (identifier.find("si") != std::string::npos)
+            return REGISTER_TABLE[16 + lindex];
+        if (identifier.find("di") != std::string::npos)
+            return REGISTER_TABLE[20 + lindex];
+        if (identifier.find("bp") != std::string::npos)
+            return REGISTER_TABLE[24 + lindex];
+        if (identifier.find("sp") != std::string::npos)
+            return REGISTER_TABLE[28 + lindex];
+        if (identifier.find('a') != std::string::npos)
+            return REGISTER_TABLE[0 + lindex];
+        if (identifier.find('b') != std::string::npos)
+            return REGISTER_TABLE[4 + lindex];
+        if (identifier.find('c') != std::string::npos)
+            return REGISTER_TABLE[8 + lindex];
+        if (identifier.find('d') != std::string::npos)
+            return REGISTER_TABLE[12 + lindex];
         return "-1";
     }
 

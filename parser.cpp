@@ -1,5 +1,4 @@
 #include "parser.h"
-#include "asc.h"
 
 namespace asc
 {
@@ -404,7 +403,7 @@ namespace asc
                 asc::err("expected expression", lcurrent->line);
                 return STATE_SYNTAX_ERROR;
             }
-            as << asc::data << "__constrepl__ db \"%d\", 0";
+            as << asc::data << "__constrepl__ db \"%d\", 0x0A, 0x00";
             as.external("printf");
             std::string name = scope->name();
             as.instruct(scope->name(), "mov rcx, __constrepl__");
@@ -436,7 +435,8 @@ namespace asc
             asc::err("expected left parenthesis to start while condition");
             return STATE_SYNTAX_ERROR;
         }
-        evaluation_state ev_ex = eval_expression(lcurrent = lcurrent->next, nullptr);
+        syntax_node* expression = (lcurrent = lcurrent->next);
+        evaluation_state ev_ex = eval_expression(lcurrent, nullptr);
         if (ev_ex == STATE_SYNTAX_ERROR)
             return STATE_SYNTAX_ERROR;
         if (ev_ex == STATE_NEUTRAL) // if there was no expression found
@@ -460,9 +460,10 @@ namespace asc
         this->scope->split_b = this->branchc; // split the function by the after branch
         csr->ending = ""; // get rid of the ending for our current sr, because it will never be reached
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
+        loopb->ending = ""; // no ending
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
         this->scope = new asc::symbol(loopbname, "while", symbol_types::WHILE_BLOCK, "public", this->scope); // move scope into while loop
-        this->preserve_value("rax", this->scope); // condition of while loop preservation
+        this->scope->helper = expression; // preserve location of expression to be evaluated later
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -492,6 +493,7 @@ namespace asc
             if (it->second->scope == scope)
             {
                 auto symbol = it->second;
+                std::cout << "scope out: deleted symbol " << symbol->name() << std::endl;
                 symbols.erase(it++);
                 delete symbol;
             }
@@ -506,7 +508,13 @@ namespace asc
         }
         if (scope->s_type == symbol_types::WHILE_BLOCK)
         {
-            retrieve_value("rax");
+            syntax_node*& cpy = scope->helper;
+            asc::evaluation_state es_ev = eval_expression(cpy, nullptr);
+            if (es_ev != asc::STATE_FOUND) // how the hell...
+            {
+                asc::err("you are impressively bad at programming...", cpy->line);
+                return asc::STATE_SYNTAX_ERROR;
+            }
             as.instruct(scope->name(), "cmp rax, 0");
             as.instruct(scope->name(), "jne " + scope->name());
             as.instruct(scope->name(), "jmp B" + std::to_string(std::stoi(scope->name().substr(1)) + 1));
@@ -758,15 +766,25 @@ namespace asc
             {
                 std::string symbol_loc = "[rbp - " + std::to_string(symbol->offset) + "]";
                 std::string res = asc::resolve_register(location, asc::get_type_size(symbol->type));
-                std::string word = asc::get_word(asc::get_type_size(symbol->type));
+                std::cout << "lol: " << res << std::endl;
+                int symbol_size = asc::get_type_size(symbol->type);
+                std::string word = asc::get_word(symbol_size);
                 if (res != "-1")
                     location = res;
+                std::string from = symbol_loc;
+                if (application != nullptr) // attempt to move from memory location to memory location 
+                {
+                    // (not allowed in x86)
+                    from = asc::resolve_register("rbx", symbol_size);
+                    as.instruct(scope->name(), "mov " + // move value to auxilary register
+                        from + ", " + word + ' ' + symbol_loc);
+                }
                 if (oper == "+")
-                    as.instruct(scope->name(), "add " + location + ", " + word + ' ' + symbol_loc);
+                    as.instruct(scope->name(), "add " + location + ", " + word + ' ' + from);
                 else if (oper == "-")
-                    as.instruct(scope->name(), "sub " + location + ", " + word + ' ' + symbol_loc);
+                    as.instruct(scope->name(), "sub " + location + ", " + word + ' ' + from);
                 else
-                    as.instruct(scope->name(), "mov " + location + ", " + word + ' ' + symbol_loc);
+                    as.instruct(scope->name(), "mov " + location + ", " + word + ' ' + from);
                 oper.clear();
                 lcurrent = lcurrent->next;
                 continue;
@@ -787,7 +805,7 @@ namespace asc
     int parser::preserve_value(std::string location, symbol* scope)
     {
         int register_size = asc::get_register_size(location);
-        int position = 40 + (dpc += register_size);
+        int position = (dpc += register_size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp - " + std::to_string(position) + "], " + location);
         return position;
@@ -795,7 +813,7 @@ namespace asc
 
     int parser::reserve_data_space(int size)
     {
-        int position = 40 + (dpc += size);
+        int position = (dpc += size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         return position;
     }
@@ -809,7 +827,7 @@ namespace asc
     // off the top
     void parser::retrieve_value(std::string storage)
     {
-        retrieve_value(dpc + 40, storage);
+        retrieve_value(dpc, storage);
     }
 
     parser::~parser()

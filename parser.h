@@ -7,6 +7,7 @@
 #include "syntax.h"
 #include "assembler.h"
 #include "logger.h"
+#include "asc.h"
 
 namespace asc
 {
