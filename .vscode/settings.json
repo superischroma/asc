@@ -55,6 +55,10 @@
         "sstream": "cpp",
         "xtree": "cpp",
         "stack": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "bitset": "cpp",
+        "ctime": "cpp",
+        "iterator": "cpp",
+        "regex": "cpp"
     }
 }

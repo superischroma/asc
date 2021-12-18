@@ -18,6 +18,9 @@ namespace asc
         const symbol_type IF_BLOCK = 0x04;
         const symbol_type WHILE_BLOCK = 0x05;
         const symbol_type GENERIC_BLOCK = 0x06;
+        const symbol_type STRUCTLIKE_TYPE = 0x07;
+        const symbol_type STRUCTLIKE_TYPE_MEMBER = 0x08;
+        const symbol_type OBJECT = 0x09;
 
         std::string name(symbol_type st);
     }
@@ -35,8 +38,31 @@ namespace asc
         int split_b;
         
         symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
+        symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*&& scope);
         std::string name();
     };
+
+    class type_symbol: public symbol
+    {
+    public:
+        std::vector<syntax_node*> members;
+        int b_size;
+
+        type_symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
+    };
+
+    /*
+    class expression_derivative
+    {
+    public:
+        syntax_node* left;
+        int oid;
+        int parenthesis;
+        syntax_node* right;
+
+        expression_derivative(syntax_node* left, int oid, int parenthesis, syntax_node* right);
+    }
+    */
 }
 
 #endif

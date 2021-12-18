@@ -15,8 +15,8 @@ namespace asc
                 case 3: return "PUNCTUATOR";
                 case 4: return "CONSTANT";
                 case 5: return "STRING_LITERAL";
+                default: return "UNNAMED_SYNTAX_TYPE_" + std::to_string(type);
             }
-            return std::to_string(type);
         }
     }
 
@@ -40,8 +40,13 @@ namespace asc
         "for",
         "while",
         "use",
-        "native"
+        "native",
+        "type",
+        "extends",
+        "object"
     };
+
+    const std::string KEYWORDS_REGEX = "\\b(void|byte|bool|char|short|int|long|float|double|signed|unsigned|return|public|private|protected|if|for|while|use|native)\\b";
 
     const char* PUNCTUATORS[] = {
         "{",
@@ -71,13 +76,23 @@ namespace asc
 
     unsigned char is_keyword(std::string& test)
     {
-        for (int i = 0; i < sizeof(KEYWORDS) / sizeof(KEYWORDS[0]); i++)
+        for (int i = 0; i < (sizeof(KEYWORDS) / sizeof(KEYWORDS[0])); i++)
         {
+            /*
+            std::cout << "testing: " << KEYWORDS[i] << " on " << test << std::endl;
             if (test.length() < strlen(KEYWORDS[i]))
                 continue;
+            if (KEYWORDS[i] == test || ((KEYWORDS[i][0] == '(') && (KEYWORDS[i] == test.substr(1))))
             if (KEYWORDS[i] == test.substr(test.length() - strlen(KEYWORDS[i])))
+            {
+                std::cout << "found: " << KEYWORDS[i] << " on " << test << std::endl;
+                return strlen(KEYWORDS[i]);
+            }
+            */
+            if (std::regex_match(test, std::regex(KEYWORDS_REGEX)))
                 return strlen(KEYWORDS[i]);
         }
+        std::cout << "no match found on " << test << std::endl;
         return 0;
     }
 
@@ -146,9 +161,7 @@ namespace asc
 
     int get_type_size(std::string& prim)
     {
-        if (prim == "void")
-            return 0;
-        if (prim == "byte" || prim == "bool")
+        if (prim == "void" || prim == "byte" || prim == "bool")
             return 1;
         if (prim == "char" || prim == "short")
             return 2;

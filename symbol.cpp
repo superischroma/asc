@@ -33,11 +33,21 @@ namespace asc
         this->split_b = 0;
     }
 
+    symbol::symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*&& scope):
+        symbol(name, type, s_type, visibility, scope)
+    {}
+
     std::string symbol::name()
     {
         if (this->split_b <= 0)
             return this->m_name;
         else
             return 'B' + std::to_string(this->split_b);
+    }
+
+    type_symbol::type_symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope):
+        symbol(name, type, s_type, visibility, scope)
+    {
+        this->b_size = 0;
     }
 }

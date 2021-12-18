@@ -142,12 +142,6 @@ namespace asc
                 continue;
             if (es_if == asc::STATE_SYNTAX_ERROR)
                 return -1;
-            asc::evaluation_state es_hc = ps.eval_hardcode();
-            std::cout << "hardcode: " << (int) es_hc << std::endl;
-            if (es_hc == asc::STATE_FOUND)
-                continue;
-            if (es_hc == asc::STATE_SYNTAX_ERROR)
-                return -1;
             asc::evaluation_state es_wl = ps.eval_while();
             std::cout << "while: " << (int) es_wl << std::endl;
             if (es_wl == asc::STATE_FOUND)

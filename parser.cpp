@@ -34,7 +34,7 @@ namespace asc
         this->current = root;
         this->scope = nullptr;
         this->branchc = 0;
-        this->strlitc = 0;
+        this->slc = 0;
         this->dpc = 0;
         this->dpm = 0;
     }
@@ -94,6 +94,14 @@ namespace asc
         return eval_numeric_literal(current);
     }
 
+    evaluation_state parser::eval_string_literal(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent))
+            return STATE_SYNTAX_ERROR;
+        return lcurrent->value->length() >= 2 && (*(lcurrent->value))[0] == '"' &&
+            (*(lcurrent->value))[lcurrent->value->length() - 1] == '"';
+    }
+
     evaluation_state parser::eval_exp_ending(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent))
@@ -128,7 +136,7 @@ namespace asc
         syntax_node* slcurrent = lcurrent;
         // errors will be thrown later on once we CONFIRM this is supposed to be a function declaration
         evaluation_state v_state = eval_visibility(lcurrent);
-        std::string v = "public"; // default to public
+        std::string v = "private"; // default to public
         if (v_state == STATE_FOUND) // if a specifier was found, add it
             v = *(slcurrent->value);
         if (v_state == STATE_SYNTAX_ERROR)
@@ -382,45 +390,6 @@ namespace asc
         return eval_if(current);
     }
 
-    evaluation_state parser::eval_hardcode(syntax_node*& lcurrent)
-    {
-        if (check_eof(lcurrent, true))
-            return STATE_NEUTRAL;
-        if (*lcurrent != "@") // not a hardcode
-            return STATE_NEUTRAL;
-        lcurrent = lcurrent->next;
-        if (check_eof(lcurrent))
-            return STATE_SYNTAX_ERROR;
-        if (*lcurrent == "print") // hardcode print
-        {
-            lcurrent = lcurrent->next; // what to print
-            if (check_eof(lcurrent))
-                return STATE_SYNTAX_ERROR;
-            int pp_rax = this->preserve_value("rax");
-            evaluation_state es_ex = eval_expression(lcurrent, nullptr); // eval for exp and store in rax
-            if (es_ex != STATE_FOUND)
-            {
-                asc::err("expected expression", lcurrent->line);
-                return STATE_SYNTAX_ERROR;
-            }
-            as << asc::data << "__constrepl__ db \"%d\", 0x0A, 0x00";
-            as.external("printf");
-            std::string name = scope->name();
-            as.instruct(scope->name(), "mov rcx, __constrepl__");
-            as.instruct(scope->name(), "mov rdx, rax");
-            as.instruct(scope->name(), "call printf");
-            this->retrieve_value(pp_rax, "rax");
-        }
-        current = lcurrent;
-        return STATE_FOUND;
-    }
-
-    evaluation_state parser::eval_hardcode()
-    {
-        asc::syntax_node* current = this->current;
-        return eval_hardcode(current);
-    }
-
     evaluation_state parser::eval_while(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent, true))
@@ -543,7 +512,7 @@ namespace asc
         // errors will be thrown later on once we CONFIRM this is supposed to be a function declaration
         evaluation_state v_state = eval_visibility(slcurrent);
         //std::cout << "eval var dec def vis: " << *(slcurrent->value) << std::endl;
-        std::string v = "public"; // default to public
+        std::string v = "private"; // default to public
         if (v_state == STATE_FOUND) // if a specifier was found, add it
             v = *(slcurrent->value);
         if (v_state == STATE_SYNTAX_ERROR)
@@ -588,14 +557,18 @@ namespace asc
                 return STATE_FOUND;
             }
             var_symbol = new asc::symbol(identifier, t, symbol_types::LOCAL_VARIABLE, v, scope); // define symbol
-            if (scope != nullptr) // if we're not in global scope
-                var_symbol->offset = this->reserve_data_space(get_type_size(t)); // set stack location
+            if (scope == nullptr) // if we're in global scope
+            {
+                asc::err("constant must be initialized", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            var_symbol->offset = this->reserve_data_space(get_type_size(t)); // set stack location
             //std::cout << "declared " << t << ' ' << identifier << " without definition" << std::endl;
             lcurrent = lcurrent->next; // move it along after the semicolon
             current = lcurrent; // and bring current up to speed
             return STATE_FOUND;
         }
-        if (*(slcurrent->value) != "=") // confirming it is NOT a variable assignment
+        if (*(slcurrent->value) != "=") // confirming it is a variable assignment
             return STATE_NEUTRAL;
         lcurrent = slcurrent;
         asc::symbol*& var_symbol = symbols[identifier];
@@ -606,9 +579,15 @@ namespace asc
         }
         if (t_state != STATE_NEUTRAL)
         {
-            var_symbol = new asc::symbol(identifier, t, symbol_types::LOCAL_VARIABLE, v, scope);
+            var_symbol = new asc::symbol(identifier, t, (scope != nullptr ?
+                symbol_types::LOCAL_VARIABLE : symbol_types::GLOBAL_VARIABLE), v, scope);
             if (scope != nullptr) // if we're not in global scope
                 var_symbol->offset = this->reserve_data_space(get_type_size(t));
+            else // if we ARE in global scope
+            {
+                asc::err("constant variables have not been implemented yet", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
         }
         //std::cout << "declared " << t << ' ' << identifier << " with definition " << std::endl;
         lcurrent = lcurrent->next; // and now, expression evaluation
@@ -633,16 +612,25 @@ namespace asc
         lcurrent = lcurrent->next;
         if (check_eof(lcurrent, true))
             return STATE_NEUTRAL;
-        if (lcurrent->type != asc::syntax_types::STRING_LITERAL) // eventual handling for native use statements
+        if (lcurrent->type == asc::syntax_types::KEYWORD) // eventual handling for native use statements
         {
             asc::err("unimplemented feature: native use statements", lcurrent->line);
             return STATE_SYNTAX_ERROR;
         }
-        std::string& path = asc::unwrap(*(lcurrent->value));
-        if (asc::compile(path) == -1) // if compilation doesn't work for external module
+        else if (lcurrent->type == asc::syntax_types::IDENTIFIER) // function declarations
         {
-            asc::err("usage compilation of " + path + " failed", lcurrent->line);
-            return STATE_SYNTAX_ERROR;
+            symbols[*(lcurrent->value)] = new asc::symbol(*(lcurrent->value),
+                "", symbol_types::FUNCTION, "public", this->scope);
+            as.external(*(lcurrent->value));
+        }
+        else
+        {
+            std::string& path = asc::unwrap(*(lcurrent->value));
+            if (asc::compile(path) == -1) // if compilation doesn't work for external module
+            {
+                asc::err("usage compilation of " + path + " failed", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
         }
         lcurrent = lcurrent->next; // skip to semicolon
         if (check_eof(lcurrent, true))
@@ -719,6 +707,17 @@ namespace asc
                 else
                     as.instruct(scope->name(), "mov " + word + location + ", " + *(lcurrent->value));
                 oper.clear(); // delete the operator
+                lcurrent = lcurrent->next;
+                continue;
+            }
+            if (lcurrent->type == syntax_types::STRING_LITERAL)
+            {
+                std::string word = application != nullptr ?
+                        asc::get_word(asc::get_type_size(application->type)) + ' ' :
+                        "";
+                std::string temp_name = "__strlit" + std::to_string(++slc);
+                as << asc::data << temp_name + " db " + *(lcurrent->value) + ", 0x00";
+                as.instruct(scope->name(), "mov " + word + location + ", " + temp_name);
                 lcurrent = lcurrent->next;
                 continue;
             }
@@ -800,6 +799,82 @@ namespace asc
     {
         syntax_node* current = this->current;
         return eval_expression(current, nullptr);
+    }
+
+    evaluation_state parser::eval_type_construct(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        syntax_node* slcurrent = lcurrent;
+        evaluation_state v_state = eval_visibility(lcurrent);
+        std::string v = "private"; // default to private
+        if (v_state == STATE_FOUND) // if a specifier was found, add it
+            v = *(slcurrent->value);
+        if (v_state == STATE_SYNTAX_ERROR)
+            return STATE_SYNTAX_ERROR;
+        if (check_eof(slcurrent = slcurrent->next))
+            return STATE_NEUTRAL;
+        if (*(slcurrent) != "type") // not a type
+            return STATE_NEUTRAL;
+        lcurrent = slcurrent; // sync up local current with super local current
+        if (check_eof(lcurrent = lcurrent->next)) // move forward to identifier
+            return STATE_SYNTAX_ERROR;
+        std::string identifier = *(lcurrent->value); // get the identifier
+        if (check_eof(lcurrent = lcurrent->next)) // move forward
+            return STATE_SYNTAX_ERROR;
+        if ((*lcurrent) == "extends")
+        {
+            asc::err("inheritance is not implemented yet", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if ((*lcurrent) != "{") // if we're not starting the type
+        {
+            asc::err("type definition expected", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if (check_eof(lcurrent = lcurrent->next)) // move past brace
+            return STATE_SYNTAX_ERROR;
+        type_symbol* sym = new type_symbol(identifier, "type", symbol_types::STRUCTLIKE_TYPE, v, this->scope);
+        symbols[identifier] = sym;
+        while (!check_eof(lcurrent) || *(lcurrent) == "}")
+        {
+            int t_line = lcurrent->line;
+            evaluation_state t_state = eval_type(lcurrent);
+            if (t_state == STATE_SYNTAX_ERROR)
+                return STATE_SYNTAX_ERROR;
+            if (t_state == STATE_NEUTRAL)
+            {
+                asc::err("type expected", t_line);
+                return STATE_SYNTAX_ERROR;
+            }
+            std::string& t = *(lcurrent->value);
+            int t_size = asc::get_type_size(t);
+            if (check_eof(lcurrent = lcurrent->next)) // move to identifier
+                return STATE_SYNTAX_ERROR;
+            std::string identifier = *(lcurrent->value);
+            if (lcurrent->type != syntax_types::IDENTIFIER)
+            {
+                asc::err("identifier expected", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            if (check_eof(lcurrent = lcurrent->next)) // move to semicolon or default definition
+                return STATE_SYNTAX_ERROR;
+            if (*(lcurrent) == ";")
+            {
+                syntax_node* copied_node = lcurrent;
+                sym->members.push_back(copied_node);
+                symbols[identifier] = new symbol(identifier, t, symbol_types::STRUCTLIKE_TYPE_MEMBER, "public", dynamic_cast<symbol*>(sym));
+                continue;
+            }
+            if (*(lcurrent) != "=")
+            {
+                asc::err("expected semicolon or default definition", lcurrent->line);
+                return STATE_SYNTAX_ERROR;
+            }
+            if (check_eof(lcurrent = lcurrent->next)) // move to semicolon or default definition
+                return STATE_SYNTAX_ERROR;
+            
+        }
     }
 
     int parser::preserve_value(std::string location, symbol* scope)

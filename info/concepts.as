@@ -1,3 +1,34 @@
+#########################
+#       CONSTANTS       #
+#########################
+
+# Any variable in global scope is considered a constant.
+public const int PIES = 50; # UPPER_SNAKE_CASE public constant, made a constant explicitly
+private long UNMARKED_CONSTANT = 7; # private constant, made a constant implicitly
+
+#########################
+#       ACCESSORS       #
+#########################
+
+public void accessorPublic()
+{
+    # This is a public function
+    # This will be available in other files
+}
+
+private void accessorPrivate()
+{
+    # This is a private function
+    # This cannot be accessed in other files
+}
+
+void accessorNone()
+{
+    # This has no accessor
+    # It is set to private by default
+    # 'void example() {...}' is the same as 'private void example() {...}'
+}
+
 ########################
 #       POINTERS       #
 ########################
@@ -13,9 +44,53 @@ private void pointerTest()
 #       TYPES       #
 #####################
 
-public type Point { # type <identifier> {...}
+public type Point # type <identifier> {...}
+{
     int x;
     int y = 0; # default initializer
+}
+
+#################################
+#       TYPE INHERITANCE        #
+#################################
+
+public type Point3D extends Point
+{
+    int z;
+}
+
+#############################
+#       GENERIC TYPES       #
+#############################
+
+public type Data<T>
+{
+    T value;
+}
+
+#################################
+#       GENERIC FUNCTIONS       #
+#################################
+
+public <T> T newGeneric()
+{
+    return T();
+}
+
+# Usage
+
+public void genericUsage()
+{
+    int v = newGeneric<int>(); # Type is in diamond
+}
+
+#####################
+#       CASTING     #
+#####################
+
+public int castExample(long l)
+{
+    return (int) l; # Casting to int
 }
 
 # Implementation
@@ -50,6 +125,11 @@ private void setY(Point* p, int ny)
 
 public object Location
 {
+    # Segregate variables; these are NOT made constant explicitly
+    # These are non-instance variables for an object
+    public segregate int DEFAULT_X = 0;
+    public const segregate long DEFAULT_Y = 5; # Constant segregated variable
+
     # Instance variables
     private int x;
     private int y;
@@ -71,20 +151,42 @@ public object Location
         z = 0;
     }
 
-    # Mutator methods
+    #####################################
+    #       ACCESSORS IN OBJECTS        #
+    #####################################
+
+    # Mutator method
     public int setX(int nx)
     {
+        # This public method can be accessed outside of the object's scope
         int ox = x;
         x = nx;
         return ox;
     }
 
-    public const Location zero() # Constant method; cannot be overridden in subclasses
+    private int setY(int ny)
+    {
+        # This private method can only be accessed within the scope of this object
+        int oy = y;
+        x = ny;
+        return oy;
+    }
+
+    protected int setZ(int nz)
+    {
+        # This is a protected method, meaning it can be accessed within the scope of this
+        # object and the scope of subobjects ONLY
+        int oz = z;
+        x = nz;
+        return oz;
+    }
+
+    public const Location zero() # Constant method; cannot be overridden in subobjects
     {
         x = 0;
         y = 0;
         z = 0;
-        return *this;
+        return this; # 'this' keyword is a reference to the object which it's being used in
     }
 
     public Location +=(int d) # Overloaded operator method for +=
@@ -92,23 +194,40 @@ public object Location
         x += d;
         y += d;
         z += d;
-        return *this;
+        return this;
     }
 
-    public segregate Location zeroed() # Segregate methods, not suggested to be used
+    # Segregate methods
+    public segregate Location zeroed()
     {
+        # Segregated methods can be used without creating an instance of the object
         return Location(0, 0, 0);
     }
 }
 
-#################################
-#       CONCEPTUAL OBJECTS      #
-#################################
+# Usage
+
+private void objUsage()
+{
+    Location standard = Location(5, 5, 5); # Object construction
+    Location zero = Location.zeroed(); # Segregate method access using dot (.) operator
+    standard.setX(10); # Valid, using public method in object
+    # standard.setY(15); Error! Attempting to use private method
+    # standard.setZ(30); Error again! Attempting to use protected method
+    standard.zero(); # Zero all values in the location
+    standard += 5; # Use operator overload to add 5 to x, y, and z
+}
+
+###############################################
+#       CONCEPTUAL OBJECTS (ABSTRACTION)      #
+###############################################
 
 public object Animal
 {
     public conceptual void speak(); # Conceptual method
     # This method declaration marks Animal as a conceptual object
+    # Conceptual methods CANNOT be segregated as well
+    # public conceptual segregate void play(); Invalid. Will result in a compiling error.
 }
 
 #################################
@@ -123,15 +242,15 @@ public object Dog extends Animal
     }
 }
 
-#############################
-#       GENERIC TYPES       #
-#############################
+###############################
+#       GENERIC OBJECTS       #
+###############################
 
-public object Container<E>
+public object Container<T>
 {
-    private E value;
+    private T value;
 
-    public constructor(E v)
+    public constructor(T v)
     {
         value = v;
     }
@@ -144,6 +263,13 @@ public object Container<E>
     }
 }
 
+# Initialization
+
+private void genExample()
+{
+    Container<int> container = Container<int>(5);
+}
+
 private Location locationHorizontal(int vx, int vz)
 {
     return Location(vx, 100, vz); # Explicit, like types
@@ -152,4 +278,33 @@ private Location locationHorizontal(int vx, int vz)
 private Location locationHorizontalExplicit(int vx, int vz)
 {
     return Location(x = vx, y = 100, z = vz)
+}
+
+#########################
+#       NAMESPACES      #
+#########################
+
+namespace Utilities # Utility namespace
+{
+    public int m2(int x)
+    {
+        return x + x;
+    }
+}
+
+# Usage outside of namespace
+private int nsUsage()
+{
+    # double colon (::) operator for scoping into namespaces
+    return Utilities::m2(6); # Returns 12
+}
+
+# Nested namespaces
+
+namespace Outer
+{
+    namespace Inner
+    {
+        public const int COUNT = 5; # Outer::Inner::COUNT to access
+    }
 }

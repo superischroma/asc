@@ -1,14 +1,6 @@
-public int m2(int x)
-{
-    return x + x;
-}
+use printf;
 
 public int main()
 {
-    int i = m2(m2(2));
-    while (i)
-    {
-        @print i;
-        i = i - 1;
-    }
+    printf("%d", 5);
 }

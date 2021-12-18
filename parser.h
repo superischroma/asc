@@ -27,7 +27,7 @@ namespace asc
         std::map<std::string, symbol*> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
         int branchc; // counter for branches
-        int strlitc;
+        int slc; // string literal counter
         int dpc; // data preservation counter (how much data do we need to preserve right now?)
         int dpm; // data preservation max (how many will we need at a time)
 
@@ -40,6 +40,8 @@ namespace asc
         evaluation_state eval_visibility();
         evaluation_state eval_numeric_literal(syntax_node*& lcurrent);
         evaluation_state eval_numeric_literal();
+        evaluation_state eval_string_literal(syntax_node*& lcurrent);
+        evaluation_state eval_string_literal();
         evaluation_state eval_exp_ending(syntax_node*& lcurrent);
         evaluation_state eval_exp_ending();
         evaluation_state eval_operator(syntax_node*& lcurrent);
@@ -52,8 +54,6 @@ namespace asc
         evaluation_state eval_ret();
         evaluation_state eval_if(syntax_node*& lcurrent);
         evaluation_state eval_if();
-        evaluation_state eval_hardcode(syntax_node*& lcurrent);
-        evaluation_state eval_hardcode();
         evaluation_state eval_while(syntax_node*& lcurrent);
         evaluation_state eval_while();
         evaluation_state eval_block_ending(syntax_node*& lcurrent);
@@ -64,6 +64,8 @@ namespace asc
         evaluation_state eval_use();
         evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
         evaluation_state eval_expression();
+        evaluation_state eval_type_construct(syntax_node*& lcurrent);
+        evaluation_state eval_type_construct();
         int preserve_value(std::string location, symbol* scope = nullptr);
         int reserve_data_space(int size);
         void retrieve_value(int position, std::string storage);
