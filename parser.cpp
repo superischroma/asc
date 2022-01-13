@@ -1,4 +1,8 @@
+#include <stdexcept>
+
 #include "parser.h"
+
+#define MAX_INT32 0x7FFFFFFF
 
 namespace asc
 {
@@ -174,11 +178,19 @@ namespace asc
             asc::err("type specifier expected", t_line);
             return STATE_SYNTAX_ERROR;
         }
-        asc::symbol*& function_symbol = symbols[identifier]; // get reference to the current symbol with this identifier
-        if (function_symbol != nullptr) // if symbol already exists in this scope
+        if (symbol_table_has(identifier, scope)) // if symbol already exists in this scope
         {
             asc::err("symbol is already defined", i_line);
             return STATE_SYNTAX_ERROR;
+        }
+        asc::symbol*& function_symbol;
+        try
+        {
+            function_symbol = symbol_table_get(identifier); // get reference to the current symbol with this identifier
+        }
+        catch (std::out_of_range e)
+        {
+            return;
         }
         function_symbol = new asc::symbol(identifier, t, symbol_types::FUNCTION, v, scope);
         //std::cout << "defined " << t << ' ' << identifier << " as a function" << std::endl;
@@ -801,6 +813,13 @@ namespace asc
         return eval_expression(current, nullptr);
     }
 
+    /*
+    evaluation_state n_eval_expression(syntax_node*& lcurrent)
+    {
+
+    }
+    */
+
     evaluation_state parser::eval_type_construct(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent, true))
@@ -836,7 +855,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         type_symbol* sym = new type_symbol(identifier, "type", symbol_types::STRUCTLIKE_TYPE, v, this->scope);
         symbols[identifier] = sym;
-        while (!check_eof(lcurrent) || *(lcurrent) == "}")
+        while (!check_eof(lcurrent) && *(lcurrent) != "}")
         {
             int t_line = lcurrent->line;
             evaluation_state t_state = eval_type(lcurrent);
@@ -857,24 +876,23 @@ namespace asc
                 asc::err("identifier expected", lcurrent->line);
                 return STATE_SYNTAX_ERROR;
             }
-            if (check_eof(lcurrent = lcurrent->next)) // move to semicolon or default definition
+            syntax_node* identifier_node = lcurrent;
+            sym->members.push_back(identifier_node);
+            symbols[identifier] = new symbol(identifier, t, symbol_types::STRUCTLIKE_TYPE_MEMBER, "public", dynamic_cast<symbol*>(sym));
+            while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
+            if (lcurrent == nullptr)
                 return STATE_SYNTAX_ERROR;
-            if (*(lcurrent) == ";")
-            {
-                syntax_node* copied_node = lcurrent;
-                sym->members.push_back(copied_node);
-                symbols[identifier] = new symbol(identifier, t, symbol_types::STRUCTLIKE_TYPE_MEMBER, "public", dynamic_cast<symbol*>(sym));
-                continue;
-            }
-            if (*(lcurrent) != "=")
-            {
-                asc::err("expected semicolon or default definition", lcurrent->line);
+            if (check_eof(lcurrent = lcurrent->next)) // skip semicolon
                 return STATE_SYNTAX_ERROR;
-            }
-            if (check_eof(lcurrent = lcurrent->next)) // move to semicolon or default definition
-                return STATE_SYNTAX_ERROR;
-            
         }
+        current = lcurrent = lcurrent->next;
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::eval_type_construct()
+    {
+        syntax_node* current = this->current;
+        return eval_type_construct(current);
     }
 
     int parser::preserve_value(std::string location, symbol* scope)
@@ -903,6 +921,49 @@ namespace asc
     void parser::retrieve_value(std::string storage)
     {
         retrieve_value(dpc, storage);
+    }
+
+    bool parser::symbol_table_has(std::string name, symbol* scope)
+    {
+        try
+        {
+            symbol_table_get(name, scope);
+            return true;
+        }
+        catch (std::out_of_range e)
+        {
+            return false;
+        }
+    }
+
+    symbol*& parser::symbol_table_get(std::string name, symbol* scope)
+    {
+        if (scope == nullptr)
+            scope = this->scope;
+        std::vector<symbol*>& found = symbols.at(name); // get symbols with this name
+        if (found.size() == 1) // if there's only one
+            return found[0]; // return it
+        int priority = -1; // keep track of the best instance of this symbol's index
+        int depth = MAX_INT32; // keep track of the depth of the best instance
+        for (int i = 0; i < found.size(); i++) // iterate over the symbols with this name
+        {
+            int d = 0;
+            for (symbol* s = scope; s != nullptr; s = s->scope, d++) // iterate down ideal scope
+            {
+                if (s->name() == found[i]->scope->name())
+                {
+                    if (d < depth)
+                    {
+                        priority = i;
+                        depth = d;
+                    }
+                    break;
+                }
+            }
+        }
+        if (priority == -1)
+            throw std::out_of_range("no symbol exists with this name");
+        return found[priority];
     }
 
     parser::~parser()

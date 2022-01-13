@@ -40,6 +40,7 @@ namespace asc
         symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
         symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*&& scope);
         std::string name();
+        virtual std::string to_string();
     };
 
     class type_symbol: public symbol
@@ -49,7 +50,18 @@ namespace asc
         int b_size;
 
         type_symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
+        std::string to_string();
     };
+
+    /*
+    bool operator<(symbol& lhs, symbol& rhs)
+    {
+        if (lhs.m_name < rhs.m_name) return true;
+        if (lhs.m_name > rhs.m_name) return false;
+
+        return lhs.scope < rhs.scope;
+    }
+    */
 
     /*
     class expression_derivative

@@ -13,13 +13,17 @@
 std::string SRC_ASSEMBLER = "nasm";
 std::string SRC_LINKER = "gcc";
 std::vector<std::string> OBJECT_FILES;
+namespace asc
+{
+    asc::arg_result args;
+}
 
 int main(int argc, char* argv[])
 {
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())
         asc::warn("no options file found, using default options");
-    if (!ois.fail())
+    else
     {
         auto options = asc::map_cfg_file(ois);
         try
@@ -41,8 +45,8 @@ int main(int argc, char* argv[])
             SRC_LINKER = "gcc";
         }
     }
-    asc::arg_result args = asc::eval_args(argc, argv);
-    if (asc::has_option_set(args, asc::cli_options::HELP))
+    asc::args = asc::eval_args(argc, argv);
+    if (asc::has_option_set(asc::args, asc::cli_options::HELP))
     {
         std::cout << "Usage: asc [options] file..." << std::endl;
         std::cout << "Options:" << std::endl;
@@ -53,28 +57,28 @@ int main(int argc, char* argv[])
         }
         return 0;
     }
-    if (args.files.size() <= 0)
+    if (asc::args.files.size() <= 0)
     {
         asc::err("no input files");
         return -1;
     }
-    if (asc::has_option_set(args, asc::cli_options::TOKENIZE))
+    if (asc::has_option_set(asc::args, asc::cli_options::TOKENIZE))
     {
-        for (auto const& file : args.files)
+        for (auto const& file : asc::args.files)
         {
             if (asc::visually_tokenize(file) == -1)
                 return -1;
         }
         return 0;
     }
-    for (auto const& file : args.files)
+    for (auto const& file : asc::args.files)
     {
         if (asc::compile(file) == -1)
             return -1;
     }
     if (SRC_LINKER == "gcc" || SRC_LINKER == "ld")
     {
-        std::string cmd = SRC_LINKER + " -o " + args.output_location;
+        std::string cmd = SRC_LINKER + " -o " + asc::args.output_location;
         for (auto& file : OBJECT_FILES)
             cmd += ' ' + file;
         system(cmd.c_str());
@@ -123,6 +127,12 @@ namespace asc
             if (es_fd == asc::STATE_FOUND)
                 continue;
             if (es_fd == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_tc = ps.eval_type_construct();
+            std::cout << "type creation: " << (int) es_tc << std::endl;
+            if (es_tc == asc::STATE_FOUND)
+                continue;
+            if (es_tc == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_vdd = ps.eval_variable_decl_def();
             std::cout << "variable: " << (int) es_vdd << std::endl;

@@ -24,7 +24,7 @@ namespace asc
         // tracking variables
         syntax_node* current; // syntax token being evaluated
         assembler as; // constructor for assembly code
-        std::map<std::string, symbol*> symbols; // symbol table
+        std::map<std::string, std::vector<symbol*>> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
         int branchc; // counter for branches
         int slc; // string literal counter
@@ -32,8 +32,12 @@ namespace asc
         int dpm; // data preservation max (how many will we need at a time)
 
         parser(syntax_node* root);
+
+        // utility
         bool parseable();
         bool check_eof(syntax_node* node, bool silence = false);
+
+        // eval methods
         evaluation_state eval_type(syntax_node*& lcurrent);
         evaluation_state eval_type();
         evaluation_state eval_visibility(syntax_node*& lcurrent);
@@ -66,10 +70,18 @@ namespace asc
         evaluation_state eval_expression();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
+
+        // value management
         int preserve_value(std::string location, symbol* scope = nullptr);
         int reserve_data_space(int size);
         void retrieve_value(int position, std::string storage);
         void retrieve_value(std::string storage);
+
+        // symbol table methods
+        bool symbol_table_has(std::string name, symbol* scope = nullptr);
+        symbol*& symbol_table_get(std::string name, symbol* scope = nullptr);
+
+        // destructor
         ~parser();
     };
 }

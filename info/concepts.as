@@ -151,6 +151,12 @@ public object Location
         z = 0;
     }
 
+    # Singular constructor
+    public constructor(int o)
+    {
+        this(o, o, o); # using 'this' as a constructor call
+    }
+
     #####################################
     #       ACCESSORS IN OBJECTS        #
     #####################################
@@ -212,8 +218,8 @@ private void objUsage()
     Location standard = Location(5, 5, 5); # Object construction
     Location zero = Location.zeroed(); # Segregate method access using dot (.) operator
     standard.setX(10); # Valid, using public method in object
-    # standard.setY(15); Error! Attempting to use private method
-    # standard.setZ(30); Error again! Attempting to use protected method
+    # standard.setY(15); Error! Attempting to use private method in unauthorized scope
+    # standard.setZ(30); Error again! Attempting to use protected method in unauthorized scope
     standard.zero(); # Zero all values in the location
     standard += 5; # Use operator overload to add 5 to x, y, and z
 }
@@ -307,4 +313,54 @@ namespace Outer
     {
         public const int COUNT = 5; # Outer::Inner::COUNT to access
     }
+}
+
+#####################################
+#       DEFINITION INCLUSION        #
+#####################################
+
+use printf; # defines 'printf' as a function which will be included at compile-time
+
+public int defIncTest()
+{
+    printf("%d", 10); # use normally as a function
+}
+
+##############################
+#       FILE INCLUSION       #
+##############################
+
+# asdf.as:
+#
+# public int test()
+# {
+#     return 10;
+# }
+
+use printf; # definition inclusion from c stdlib
+use "asdf.as";
+
+public int fileIncTest()
+{
+    printf("%d", test());
+}
+
+#################################
+#       C LANG INCLUSIONS       #
+#################################
+
+# asdf.c:
+#
+# #include <stdio.h>
+# 
+# public void testTwo()
+# {
+#     printf("%d", 20);
+# }
+
+use native "asdf.c";
+
+public int clangIncTest()
+{
+    testTwo(); # prints 20
 }
