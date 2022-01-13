@@ -1,0 +1,25 @@
+{
+    "name": "asharp",
+    "displayName": "A#",
+    "description": "Syntax highlighting for the A# language.",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "asharp",
+            "aliases": ["A#"],
+            "extensions": [".as"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "asharp",
+            "scopeName": "source.as",
+            "path": "./syntaxes/asharp.tmLanguage.json"
+        }]
+    }
+}

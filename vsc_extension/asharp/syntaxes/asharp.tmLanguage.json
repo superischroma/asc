@@ -1,0 +1,87 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "asharp",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#constants"
+		},
+		{
+			"include": "#variables"
+		},
+		{
+			"include": "#functions"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [{
+				"begin": "#",
+				"beginCaptures": {
+					"0": {
+						"name": "comment.line.double-slash"
+					}
+				},
+				"end": "\\n",
+				"name": "comment.line.double-slash.asharp"
+			}]
+		},
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.asharp",
+				"match": "(if|for|while|use|return|@print)\\b"
+			}]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "constant.character.escape.asharp",
+					"match": "\\\\."
+				},
+				{
+					"name": "string.quoted.double.asharp",
+					"begin": "\"",
+					"end": "\""
+				},
+				{
+					"name": "string.quoted.single.asharp",
+					"begin": "'",
+					"end": "'"
+				}
+			]
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.numeric",
+					"match": "\\d+(\\.\\d+)?"
+				},
+				{
+					"name": "constant.language",
+					"match": "\\b(namespace|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|unsigned|signed|native|public|private|protected)\\b"
+				}
+			]
+		},
+		"variables": {
+			"patterns": [
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"name": "entity.name.function",
+					"match": "\\w+(?=\\s+\\()"
+				}
+			]
+		}
+	},
+	"scopeName": "source.as"
+}
