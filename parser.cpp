@@ -6,6 +6,8 @@
 
 namespace asc
 {
+    symbol* invalid_symbol = nullptr;
+
     evaluation_state parser::recur_func_stack_args(syntax_node*& lcurrent, bool exp)
     {
         if (lcurrent == nullptr)
@@ -178,21 +180,12 @@ namespace asc
             asc::err("type specifier expected", t_line);
             return STATE_SYNTAX_ERROR;
         }
-        if (symbol_table_has(identifier, scope)) // if symbol already exists in this scope
+        if (symbol_table_get_imm(identifier) != nullptr)
         {
-            asc::err("symbol is already defined", i_line);
+            asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
         }
-        asc::symbol*& function_symbol;
-        try
-        {
-            function_symbol = symbol_table_get(identifier); // get reference to the current symbol with this identifier
-        }
-        catch (std::out_of_range e)
-        {
-            return;
-        }
-        function_symbol = new asc::symbol(identifier, t, symbol_types::FUNCTION, v, scope);
+        symbol* function_symbol = symbol_table_insert(identifier, new asc::symbol(identifier, t, symbol_types::FUNCTION, v, scope));
         //std::cout << "defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -217,8 +210,8 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             int ai_line = lcurrent->line;
             std::string& a_identifier = *(lcurrent->value); // get the identifier that MIGHT be there
-            asc::symbol*& a_symbol = symbols[a_identifier]; // get reference to the current symbol with this identifier
-            if (a_symbol != nullptr) // if symbol already exists in this scope
+            asc::symbol*& a_symbol = symbol_table_get(a_identifier, function_symbol); // get reference to the current symbol with this identifier
+            if (a_symbol != invalid_symbol) // if symbol already exists in this scope
             {
                 asc::err("symbol is already defined", ai_line);
                 return STATE_SYNTAX_ERROR;
@@ -936,21 +929,38 @@ namespace asc
         }
     }
 
-    symbol*& parser::symbol_table_get(std::string name, symbol* scope)
+    /**
+     * @brief Retrieve a symbol from the symbol table. This method
+     * will return symbols in lower scopes if it does not find one
+     * of the name in the scope provided.
+     * 
+     * @param name The symbol's name
+     * @param scope The scope to search from
+     * @return symbol*& 
+     */
+    symbol* parser::symbol_table_get(std::string name, symbol* scope)
     {
         if (scope == nullptr)
             scope = this->scope;
-        std::vector<symbol*>& found = symbols.at(name); // get symbols with this name
-        if (found.size() == 1) // if there's only one
-            return found[0]; // return it
+        std::vector<symbol*>* found; // get symbols with this name
+        try
+        {
+            found = &(symbols.at(name));
+        }
+        catch (std::out_of_range e)
+        {
+            return nullptr;
+        }
+        if (found->size() == 1) // if there's only one
+            return (*found)[0]; // return it
         int priority = -1; // keep track of the best instance of this symbol's index
         int depth = MAX_INT32; // keep track of the depth of the best instance
-        for (int i = 0; i < found.size(); i++) // iterate over the symbols with this name
+        for (int i = 0; i < found->size(); i++) // iterate over the symbols with this name
         {
             int d = 0;
             for (symbol* s = scope; s != nullptr; s = s->scope, d++) // iterate down ideal scope
             {
-                if (s->name() == found[i]->scope->name())
+                if (s->name() == (*found)[i]->scope->name())
                 {
                     if (d < depth)
                     {
@@ -962,8 +972,51 @@ namespace asc
             }
         }
         if (priority == -1)
-            throw std::out_of_range("no symbol exists with this name");
-        return found[priority];
+            return nullptr;
+        return (*found)[priority];
+    }
+
+    /**
+     * @brief Retrieve a symbol from the symbol table in
+     * the immediate scope without checking lower ones.
+     * 
+     * @param name The symbol's name
+     * @param scope The scope to search in
+     * @return symbol*& 
+     */
+    symbol* parser::symbol_table_get_imm(std::string name, symbol* scope = nullptr)
+    {
+        if (scope == nullptr)
+            scope = this->scope;
+        std::vector<symbol*>* found; // get symbols with this name
+        try
+        {
+            found = &(symbols.at(name));
+        }
+        catch (std::out_of_range e)
+        {
+            return nullptr;
+        }
+        for (int i = 0; i < found->size(); i++)
+        {
+            if (scope == (*found)[i]->scope)
+                return (*found)[i];
+        }
+        return nullptr;
+    }
+
+    symbol* parser::symbol_table_insert(std::string name, symbol* s)
+    {
+        symbols[name].push_back(s);
+        return s;
+    }
+
+    void parser::symbol_table_delete(symbol* s)
+    {
+        std::vector<symbol*>& vec = symbols[s->m_name];
+        vec.erase(std::remove(vec.begin(), vec.end(), s), vec.end());
+        if (vec.empty())
+            symbols.erase(s->m_name); // free some memory if we're not using the vector
     }
 
     parser::~parser()

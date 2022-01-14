@@ -79,7 +79,10 @@ namespace asc
 
         // symbol table methods
         bool symbol_table_has(std::string name, symbol* scope = nullptr);
-        symbol*& symbol_table_get(std::string name, symbol* scope = nullptr);
+        symbol* symbol_table_get(std::string name, symbol* scope = nullptr);
+        symbol* symbol_table_get_imm(std::string name, symbol* scope = nullptr);
+        symbol* symbol_table_insert(std::string name, symbol* s);
+        void symbol_table_delete(symbol* s);
 
         // destructor
         ~parser();
