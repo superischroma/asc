@@ -8,5 +8,6 @@ public type Point
 
 public int main()
 {
-    printf("%d\n", 5);
+    int x = 10;
+    printf("%d", x);
 }

@@ -20,6 +20,77 @@ namespace asc
         }
     }
 
+    namespace visibilities
+    {
+        std::string name(unsigned short type)
+        {
+            switch (type)
+            {
+                case PUBLIC: return "PUBLIC";
+                case PRIVATE: return "PRIVATE";
+                case PROTECTED: return "PROTECTED";
+                case LOCAL: return "LOCAL";
+                default: return "UNNAMED_VISIBILITY_" + std::to_string(type);
+            }
+        }
+
+        visibility value_of(std::string name)
+        {
+            if (name == "PUBLIC")
+                return PUBLIC;
+            if (name == "PRIVATE")
+                return PRIVATE;
+            if (name == "PROTECTED")
+                return PROTECTED;
+            if (name == "LOCAL")
+                return LOCAL;
+            return -1;
+        }
+    }
+
+    namespace primitives
+    {
+        std::string name(unsigned short type)
+        {
+            switch (type)
+            {
+                case PRIMITIVE_VOID: return "PRIMITIVE_VOID";
+                case PRIMITIVE_BYTE: return "PRIMITIVE_BYTE";
+                case PRIMITIVE_SHORT: return "PRIMITIVE_SHORT";
+                case PRIMITIVE_INT: return "PRIMITIVE_INT";
+                case PRIMITIVE_LONG: return "PRIMITIVE_LONG";
+                case PRIMITIVE_BOOL: return "PRIMITIVE_BOOL";
+                case PRIMITIVE_CHAR: return "PRIMITIVE_CHAR";
+                case PRIMITIVE_FLOAT: return "PRIMITIVE_FLOAT";
+                case PRIMITIVE_DOUBLE: return "PRIMITIVE_DOUBLE";
+                default: return "UNNAMED_PRIMITIVE_" + std::to_string(type);
+            }
+        }
+
+        primitive from_display(std::string name)
+        {
+            if (name == "void")
+                return PRIMITIVE_VOID;
+            if (name == "byte")
+                return PRIMITIVE_BYTE;
+            if (name == "short")
+                return PRIMITIVE_SHORT;
+            if (name == "int")
+                return PRIMITIVE_INT;
+            if (name == "long")
+                return PRIMITIVE_LONG;
+            if (name == "bool")
+                return PRIMITIVE_BOOL;
+            if (name == "char")
+                return PRIMITIVE_CHAR;
+            if (name == "float")
+                return PRIMITIVE_FLOAT;
+            if (name == "double")
+                return PRIMITIVE_DOUBLE;
+            return -1;
+        }
+    }
+
     const char* PUNCTUATORS[] = {
         "{",
         "}",

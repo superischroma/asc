@@ -15,6 +15,8 @@ namespace asc
     void err(std::string&& str);
     void err(std::string& str, int line);
     void err(std::string&& str, int line);
+    void debug(std::string& str);
+    void debug(std::string&& str);
 }
 
 #endif

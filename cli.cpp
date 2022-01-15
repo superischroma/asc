@@ -5,6 +5,7 @@ namespace asc
 {
     std::vector<help_reference> REFERENCE_OPTIONS {
         {"--help", "Shows this menu"},
+        {"-debug", "Shows debug information while compiling"},
         {"-tokenize", "Tokenizes the input file and displays it"},
         {"-symbolize", "Analyzes symbols created by asc and displays them"},
         {"-o <location>", "Specifies an output location"}
@@ -24,6 +25,8 @@ namespace asc
                 as.options |= cli_options::HELP;
             else if (arg == "-symbolize")
                 as.options |= cli_options::SYMBOLIZE;
+            else if (arg == "-debug")
+                as.options |= cli_options::DEBUG;
             else if (arg == "-o")
             {
                 arg = std::string(argv[++i]);

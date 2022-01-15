@@ -8,6 +8,8 @@
 namespace asc // Forward declarations
 {
     class syntax_node;
+    typedef unsigned short visibility;
+    typedef unsigned short primitive;
 }
 
 #include "assembler.h"
@@ -27,6 +29,33 @@ namespace asc
         const unsigned short STRING_LITERAL = 5;
 
         std::string name(unsigned short type);
+    }
+
+    namespace visibilities
+    {
+        const unsigned short PUBLIC = 0;
+        const unsigned short PRIVATE = 1;
+        const unsigned short PROTECTED = 2;
+        const unsigned short LOCAL = 3;
+
+        std::string name(unsigned short type);
+        visibility value_of(std::string name);
+    }
+
+    namespace primitives
+    {
+        const unsigned short PRIMITIVE_VOID = 0;
+        const unsigned short PRIMITIVE_BYTE = 1;
+        const unsigned short PRIMITIVE_SHORT = 2;
+        const unsigned short PRIMITIVE_INT = 3;
+        const unsigned short PRIMITIVE_LONG = 4;
+        const unsigned short PRIMITIVE_BOOL = 5;
+        const unsigned short PRIMITIVE_CHAR = 6;
+        const unsigned short PRIMITIVE_FLOAT = 7;
+        const unsigned short PRIMITIVE_DOUBLE = 8;
+
+        std::string name(unsigned short type);
+        primitive from_display(std::string name);
     }
 
     unsigned char is_keyword(std::string& test);

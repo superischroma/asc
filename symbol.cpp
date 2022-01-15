@@ -26,12 +26,12 @@ namespace asc
         }
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope)
+    symbol::symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
         this->s_type = s_type;
-        this->visibility = visibility;
+        this->vis = vis;
         this->scope = scope;
         this->helper = nullptr;
         this->offset = 0;
@@ -40,8 +40,8 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*&& scope):
-        symbol(name, type, s_type, visibility, scope)
+    symbol::symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*&& scope):
+        symbol(name, type, s_type, vis, scope)
     {}
 
     std::string symbol::name()
@@ -55,12 +55,12 @@ namespace asc
     std::string symbol::to_string()
     {
         return "asc::symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
-            asc::symbol_types::name(s_type) + ", visibility=" + visibility +
+            asc::symbol_types::name(s_type) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
     }
 
-    type_symbol::type_symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope):
-        symbol(name, type, s_type, visibility, scope)
+    type_symbol::type_symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope):
+        symbol(name, type, s_type, vis, scope)
     {
         this->b_size = 0;
     }
@@ -68,7 +68,7 @@ namespace asc
     std::string type_symbol::to_string()
     {
         std::string s = "asc::type_symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
-            asc::symbol_types::name(s_type) + ", visibility=" + visibility +
+            asc::symbol_types::name(s_type) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
         for (int i = 0; i < members.size(); i++)
         {

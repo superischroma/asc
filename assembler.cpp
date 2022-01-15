@@ -104,7 +104,6 @@ namespace asc
     {
         if (children == nullptr)
             children = new std::vector<subroutine*>();
-        std::cout << sr << ", " << children << std::endl;
         children->push_back(sr);
         return *this;
     }
@@ -115,10 +114,10 @@ namespace asc
         int space;
         if (this->parent == nullptr)
         {
-            std::cout << "preserved for " << name << ": " << preserved_data << std::endl;
+            asc::debug("preserved for " + name + ": " + std::to_string(preserved_data));
             space = 40 /* shadow space */ + preserved_data;
             space += (space % 16); // 16-byte alignment for calling convention
-            std::cout << "space: " << space << std::endl;
+            asc::debug("space: " + std::to_string(space));
             str += "\n\tpush rbp\n\tmov rbp, rsp";
             if (space != 0)
                 str += "\n\tsub rsp, " + std::to_string(space);
@@ -133,7 +132,7 @@ namespace asc
                 (this->children == nullptr ||
                     (this->children != nullptr && this->children->size() == 0))))
         {
-            std::cout << "preserved for " << name << ": " << preserved_data << std::endl;
+            asc::debug("preserved for " + name + ": " + std::to_string(preserved_data));
             space = 40 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
             space += (space % 16); // 16-byte alignment for calling convention
             if (this->parent != nullptr || space != 0)
@@ -174,7 +173,7 @@ namespace asc
         if (sr == nullptr)
             sr = new asc::subroutine(subroutine, nullptr);
         sr->instructions += "\n\t" + instruction;
-        std::cout << "added \"" << instruction << "\" to " << subroutine << std::endl;
+        asc::debug("added \"" + instruction + "\" to " + subroutine);
         return *this;
     }
 

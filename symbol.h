@@ -31,14 +31,14 @@ namespace asc
         std::string m_name;
         std::string type;
         symbol_type s_type;
-        std::string visibility;
+        visibility vis;
         symbol* scope;
         syntax_node* helper;
         int offset;
         int split_b;
         
-        symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
-        symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*&& scope);
+        symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope);
+        symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*&& scope);
         std::string name();
         virtual std::string to_string();
     };
@@ -49,7 +49,7 @@ namespace asc
         std::vector<syntax_node*> members;
         int b_size;
 
-        type_symbol(std::string name, std::string type, symbol_type s_type, std::string visibility, symbol*& scope);
+        type_symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope);
         std::string to_string();
     };
 

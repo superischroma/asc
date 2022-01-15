@@ -105,61 +105,61 @@ namespace asc
         for (std::string token; tk.extractable();)
             tk >> token;
         for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
-            std::cout << current->stringify() << std::endl;
+            asc::debug(current->stringify());
         asc::parser ps = asc::parser(tk.syntax_start());
         while (ps.parseable())
         {
-            std::cout << "token: " << *(ps.current->value) << std::endl;
+            asc::debug("token: " + *(ps.current->value));
             asc::evaluation_state es_ue = ps.eval_use();
-            std::cout << "use: " << (int) es_ue << std::endl;
+            asc::debug("use: " + std::to_string((int) es_ue));
             if (es_ue == asc::STATE_FOUND)
                 continue;
             if (es_ue == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_be = ps.eval_block_ending();
-            std::cout << "block ending: " << (int) es_be << std::endl;
+            asc::debug("block ending: " + std::to_string((int) es_be));
             if (es_be == asc::STATE_FOUND)
                 continue;
             if (es_be == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_fd = ps.eval_function_decl();
-            std::cout << "function decl: " << (int) es_fd << std::endl;
+            asc::debug("function decl: " + std::to_string((int) es_fd));
             if (es_fd == asc::STATE_FOUND)
                 continue;
             if (es_fd == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_tc = ps.eval_type_construct();
-            std::cout << "type creation: " << (int) es_tc << std::endl;
+            asc::debug("type creation: " + std::to_string((int) es_tc));
             if (es_tc == asc::STATE_FOUND)
                 continue;
             if (es_tc == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_vdd = ps.eval_variable_decl_def();
-            std::cout << "variable: " << (int) es_vdd << std::endl;
+            asc::debug("variable decl/def: " + std::to_string((int) es_vdd));
             if (es_vdd == asc::STATE_FOUND)
                 continue;
             if (es_vdd == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_r = ps.eval_ret();
-            std::cout << "return: " << (int) es_r << std::endl;
+            asc::debug("return: " + std::to_string((int) es_r));
             if (es_r == asc::STATE_FOUND)
                 continue;
             if (es_r == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_if = ps.eval_if();
-            std::cout << "if: " << (int) es_if << std::endl;
+            asc::debug("if: " + std::to_string((int) es_if));
             if (es_if == asc::STATE_FOUND)
                 continue;
             if (es_if == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_wl = ps.eval_while();
-            std::cout << "while: " << (int) es_wl << std::endl;
+            asc::debug("while: " + std::to_string((int) es_wl));
             if (es_wl == asc::STATE_FOUND)
                 continue;
             if (es_wl == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_fc = ps.eval_function_call();
-            std::cout << "function call: " << (int) es_fc << std::endl;
+            asc::debug("function call: " + std::to_string((int) es_fc));
             if (es_fc == asc::STATE_FOUND)
             {
                 ps.current = ps.current->next; // move past semicolon, only here because this is a standalone function call
@@ -170,16 +170,7 @@ namespace asc
             asc::err("unknown statement", ps.current->line);
             return -1;
         }
-        /*
-        std::cout << "symbols: " << std::endl;
-        for (std::pair<std::string, asc::symbol*> pair : ps.symbols)
-        {
-            if (pair.second == nullptr)
-                continue;
-            std::cout << pair.second->visibility << ' ' << pair.second->type << ' ' << pair.second->name() << " in scope " << (pair.second->scope != nullptr ? pair.second->scope->name() : "global") << std::endl;
-        }
-        */
-        asc::symbol*& entry = ps.symbols[ps.as.entry];
+        asc::symbol* entry = ps.symbol_table_get(ps.as.entry);
         if (entry == nullptr)
         {
             asc::err("no entry point found in program");
@@ -215,7 +206,7 @@ namespace asc
         asc::tokenizer tk = asc::tokenizer(is);
         for (std::string token; tk.extractable();)
             tk >> token;
-        std::cout << filepath << " tokenized: " << std::endl;
+        asc::info(filepath + " tokenized: ");
         for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
             std::cout << current->stringify() << std::endl;
         is.close();

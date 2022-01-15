@@ -66,4 +66,26 @@ namespace asc
             map[key] = value;
         return map;
     }
+
+    std::string to_lowercase(std::string str)
+    {
+        for (int i = 0; i < str.length(); i++)
+        {
+            if (str[i] >= 'a' && str[i] <= 'z')
+                continue;
+            str[i] += ' ';
+        }
+        return str;
+    }
+
+    std::string to_uppercase(std::string str)
+    {
+        for (int i = 0; i < str.length(); i++)
+        {
+            if (str[i] >= 'A' && str[i] <= 'Z')
+                continue;
+            str[i] -= ' ';
+        }
+        return str;
+    }
 }
