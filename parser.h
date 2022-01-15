@@ -30,8 +30,6 @@ namespace asc
         int slc; // string literal counter
         int dpc; // data preservation counter (how much data do we need to preserve right now?)
         int dpm; // data preservation max (how many will we need at a time)
-        int ifc;
-        int whilec;
 
         parser(syntax_node* root);
 

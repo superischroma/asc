@@ -6,9 +6,9 @@
 
 namespace asc
 {
-    namespace symbol_types
+    namespace symbol_variants
     {
-        std::string name(symbol_type st)
+        std::string name(symbol_variant st)
         {
             switch (st)
             {
@@ -26,11 +26,11 @@ namespace asc
         }
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope)
+    symbol::symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
-        this->s_type = s_type;
+        this->variant = variant;
         this->vis = vis;
         this->scope = scope;
         this->helper = nullptr;
@@ -40,8 +40,8 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*&& scope):
-        symbol(name, type, s_type, vis, scope)
+    symbol::symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope):
+        symbol(name, type, variant, vis, scope)
     {}
 
     std::string symbol::name()
@@ -55,12 +55,12 @@ namespace asc
     std::string symbol::to_string()
     {
         return "asc::symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
-            asc::symbol_types::name(s_type) + ", visibility=" + visibilities::name(vis) +
+            asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
     }
 
-    type_symbol::type_symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope):
-        symbol(name, type, s_type, vis, scope)
+    type_symbol::type_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope):
+        symbol(name, type, variant, vis, scope)
     {
         this->b_size = 0;
     }
@@ -68,7 +68,7 @@ namespace asc
     std::string type_symbol::to_string()
     {
         std::string s = "asc::type_symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
-            asc::symbol_types::name(s_type) + ", visibility=" + visibilities::name(vis) +
+            asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
         for (int i = 0; i < members.size(); i++)
         {

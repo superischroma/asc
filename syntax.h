@@ -33,6 +33,7 @@ namespace asc
 
     namespace visibilities
     {
+        const unsigned short INVALID = -1;
         const unsigned short PUBLIC = 0;
         const unsigned short PRIVATE = 1;
         const unsigned short PROTECTED = 2;

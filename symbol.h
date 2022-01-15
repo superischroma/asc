@@ -8,21 +8,21 @@
 
 namespace asc
 {
-    typedef unsigned int symbol_type;
-    namespace symbol_types
+    typedef unsigned int symbol_variant;
+    namespace symbol_variants
     {
-        const symbol_type LOCAL_VARIABLE = 0x00;
-        const symbol_type GLOBAL_VARIABLE = 0x01;
-        const symbol_type FUNCTION_VARIABLE = 0x02;
-        const symbol_type FUNCTION = 0x03;
-        const symbol_type IF_BLOCK = 0x04;
-        const symbol_type WHILE_BLOCK = 0x05;
-        const symbol_type GENERIC_BLOCK = 0x06;
-        const symbol_type STRUCTLIKE_TYPE = 0x07;
-        const symbol_type STRUCTLIKE_TYPE_MEMBER = 0x08;
-        const symbol_type OBJECT = 0x09;
+        const symbol_variant LOCAL_VARIABLE = 0x00;
+        const symbol_variant GLOBAL_VARIABLE = 0x01;
+        const symbol_variant FUNCTION_VARIABLE = 0x02;
+        const symbol_variant FUNCTION = 0x03;
+        const symbol_variant IF_BLOCK = 0x04;
+        const symbol_variant WHILE_BLOCK = 0x05;
+        const symbol_variant GENERIC_BLOCK = 0x06;
+        const symbol_variant STRUCTLIKE_TYPE = 0x07;
+        const symbol_variant STRUCTLIKE_TYPE_MEMBER = 0x08;
+        const symbol_variant OBJECT = 0x09;
 
-        std::string name(symbol_type st);
+        std::string name(symbol_variant st);
     }
 
     class symbol
@@ -30,15 +30,15 @@ namespace asc
     public:
         std::string m_name;
         std::string type;
-        symbol_type s_type;
+        symbol_variant variant;
         visibility vis;
         symbol* scope;
         syntax_node* helper;
         int offset;
         int split_b;
         
-        symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope);
-        symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*&& scope);
+        symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
+        symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string name();
         virtual std::string to_string();
     };
@@ -49,7 +49,7 @@ namespace asc
         std::vector<syntax_node*> members;
         int b_size;
 
-        type_symbol(std::string name, std::string type, symbol_type s_type, visibility vis, symbol*& scope);
+        type_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
         std::string to_string();
     };
 

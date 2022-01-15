@@ -3,6 +3,20 @@
 
 namespace asc
 {
+    std::map<std::string, asc::syntax_node*> TYPES = {
+        { "void", nullptr },
+        { "byte", nullptr },
+        { "int", nullptr },
+        { "short", nullptr },
+        { "int", nullptr },
+        { "long", nullptr },
+        { "bool", nullptr },
+        { "char", nullptr },
+        { "float", nullptr },
+        { "double", nullptr },
+        { "type", nullptr }
+    };
+
     namespace syntax_types
     {
         std::string name(unsigned short type)
@@ -44,7 +58,7 @@ namespace asc
                 return PROTECTED;
             if (name == "LOCAL")
                 return LOCAL;
-            return -1;
+            return INVALID;
         }
     }
 

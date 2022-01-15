@@ -44,8 +44,6 @@ namespace asc
         this->slc = 0;
         this->dpc = 0;
         this->dpm = 0;
-        this->ifc = 0;
-        this->whilec = 0;
     }
 
     bool parser::parseable()
@@ -68,6 +66,7 @@ namespace asc
     {
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
+        asc::debug("eval type for " + *(lcurrent->value));
         return asc::is_primitive(*(lcurrent->value));
     }
 
@@ -81,7 +80,8 @@ namespace asc
     {
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
-        return visibilities::value_of(*(lcurrent->value)) != -1;
+        asc::debug("eval visibility for " + *(lcurrent->value));
+        return visibilities::value_of(asc::to_uppercase(*(lcurrent->value))) != visibilities::INVALID;
     }
 
     evaluation_state parser::eval_visibility()
@@ -189,7 +189,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         }
         symbol* function_symbol = symbol_table_insert(identifier, new asc::symbol(identifier, t,
-            symbol_types::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope));
+            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope));
         //asc::debug("defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -220,7 +220,7 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
-                symbol_types::FUNCTION_VARIABLE, visibilities::PUBLIC, function_symbol));
+                symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, function_symbol));
             a_symbol->offset = s += 8;
             if (c <= 4)
                 as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp - " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
@@ -388,8 +388,8 @@ namespace asc
         asc::subroutine*& ifb = as.sr(ifbname, csr); // if block subroutine
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
         ifb->ending = "jmp " + aftername; // setting ending of if block to be the jump to the after block
-        this->scope = new asc::symbol(ifbname, "if" + std::to_string(ifc++), symbol_types::IF_BLOCK,
-            visibilities::PUBLIC, this->scope); // move scope into if statement
+        this->scope = new asc::symbol(ifbname, "if", symbol_variants::IF_BLOCK,
+            visibilities::LOCAL, this->scope); // move scope into if statement
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -441,8 +441,8 @@ namespace asc
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
         loopb->ending = ""; // no ending
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
-        this->scope = new asc::symbol(loopbname, "while" + std::to_string(whilec++), symbol_types::WHILE_BLOCK,
-            visibilities::PUBLIC, this->scope); // move scope into while loop
+        this->scope = new asc::symbol(loopbname, "while", symbol_variants::WHILE_BLOCK,
+            visibilities::LOCAL, this->scope); // move scope into while loop
         this->scope->helper = expression; // preserve location of expression to be evaluated later
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
@@ -485,17 +485,14 @@ namespace asc
             }
             ++it;
         }
-        if (scope->s_type == symbol_types::FUNCTION) // if we're scoping out of a function
+        if (scope->variant == symbol_variants::FUNCTION) // if we're scoping out of a function
         {
             asc::debug("updating preserved for " + scope->m_name + ": " + std::to_string(dpm));
             as.sr(scope->m_name)->preserved_data = dpm; // set the max
             this->dpc = this->dpm = 0; // reset the dpc and dpm to be used later
         }
-        if (scope->s_type == symbol_types::IF_BLOCK)
-            this->ifc--;
-        if (scope->s_type == symbol_types::WHILE_BLOCK)
+        if (scope->variant == symbol_variants::WHILE_BLOCK)
         {
-            this->whilec--;
             syntax_node*& cpy = scope->helper;
             asc::evaluation_state es_ev = eval_expression(cpy, nullptr);
             if (es_ev != asc::STATE_FOUND) // how the hell...
@@ -530,12 +527,12 @@ namespace asc
         syntax_node* slcurrent = lcurrent;
         // errors will be thrown later on once we CONFIRM this is supposed to be a function declaration
         evaluation_state v_state = eval_visibility(slcurrent);
-        //asc::debug("eval var dec def vis: " << *(slcurrent->value) << std::endl;
+        asc::debug("vis state: " + std::to_string((int) v_state));
         std::string v = "private"; // default to public
         if (v_state == STATE_FOUND) // if a specifier was found, add it
             v = *(slcurrent->value);
         if (v_state == STATE_SYNTAX_ERROR)
-            return STATE_SYNTAX_ERROR;
+            return STATE_NEUTRAL;
         if (v_state != STATE_NEUTRAL)
         {
             slcurrent = slcurrent->next;
@@ -544,8 +541,9 @@ namespace asc
         }
         int t_line = slcurrent->line;
         evaluation_state t_state = eval_type(slcurrent);
+        asc::debug("type state: " + std::to_string((int) t_state));
         if (t_state == STATE_SYNTAX_ERROR)
-            return STATE_SYNTAX_ERROR;
+            return STATE_NEUTRAL;
         std::string& t = *(slcurrent->value);
         int t_size = asc::get_type_size(t);
         if (t_state != STATE_NEUTRAL)
@@ -575,7 +573,7 @@ namespace asc
                 return STATE_FOUND;
             }
             asc::symbol* var_symbol = symbol_table_insert(identifier,
-                new asc::symbol(identifier, t, symbol_types::LOCAL_VARIABLE, visibilities::LOCAL, scope)); // define symbol
+                new asc::symbol(identifier, t, symbol_variants::LOCAL_VARIABLE, visibilities::LOCAL, scope)); // define symbol
             if (scope == nullptr) // if we're in global scope
             {
                 asc::err("constant must be initialized", lcurrent->line);
@@ -591,6 +589,7 @@ namespace asc
             return STATE_NEUTRAL;
         lcurrent = slcurrent;
         asc::symbol* var_symbol = symbol_table_get(identifier);
+        asc::debug("type state: " + std::to_string(t_state));
         if (t_state == STATE_NEUTRAL && var_symbol == nullptr) // if attempting reassignment, but symbol doesn't exist
         {
             asc::err("symbol is not defined", i_line);
@@ -599,8 +598,8 @@ namespace asc
         if (t_state != STATE_NEUTRAL)
         {
             var_symbol = symbol_table_insert(identifier, new asc::symbol(identifier, t,
-                (scope != nullptr ? symbol_types::LOCAL_VARIABLE : symbol_types::GLOBAL_VARIABLE),
-                visibilities::value_of(asc::to_uppercase(v)), scope));
+                (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE),
+                (scope != nullptr ? visibilities::LOCAL : visibilities::value_of(asc::to_uppercase(v))), scope));
             if (scope != nullptr) // if we're not in global scope
                 var_symbol->offset = this->reserve_data_space(get_type_size(t));
             else // if we ARE in global scope
@@ -640,7 +639,7 @@ namespace asc
         else if (lcurrent->type == asc::syntax_types::IDENTIFIER) // function declarations
         {
             symbol_table_insert(*(lcurrent->value), new asc::symbol(*(lcurrent->value),
-                "", symbol_types::FUNCTION, visibilities::PUBLIC, this->scope));
+                "int", symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope));
             as.external(*(lcurrent->value));
         }
         else
@@ -859,7 +858,7 @@ namespace asc
         }
         if (check_eof(lcurrent = lcurrent->next)) // move past brace
             return STATE_SYNTAX_ERROR;
-        type_symbol* sym = new type_symbol(identifier, "type", symbol_types::STRUCTLIKE_TYPE,
+        type_symbol* sym = new type_symbol(identifier, "type", symbol_variants::STRUCTLIKE_TYPE,
             visibilities::value_of(asc::to_uppercase(v)), this->scope);
         symbol_table_insert(identifier, sym);
         while (!check_eof(lcurrent) && *(lcurrent) != "}")
@@ -885,7 +884,7 @@ namespace asc
             }
             syntax_node* identifier_node = lcurrent;
             sym->members.push_back(identifier_node);
-            symbol_table_insert(identifier, new symbol(identifier, t, symbol_types::STRUCTLIKE_TYPE_MEMBER,
+            symbol_table_insert(identifier, new symbol(identifier, t, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
                 visibilities::PUBLIC, dynamic_cast<symbol*>(sym)));
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
             if (lcurrent == nullptr)
