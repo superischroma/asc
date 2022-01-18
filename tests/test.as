@@ -1,6 +1,9 @@
+public void nothing()
+{
+
+}
+
 public int main()
 {
-    int x = 10 + 5;
-    int y = 50 + 10;
-    int z = x + y;
+    nothing(5 + 3, 8 + 9, 7 + 1);
 }

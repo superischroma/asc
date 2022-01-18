@@ -4,10 +4,11 @@
 #include <iostream>
 #include <fstream>
 #include <map>
-#include "syntax.h"
 
 namespace asc
 {
+    class syntax_node;
+
     class tokenizer
     {
     private:

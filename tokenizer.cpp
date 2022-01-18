@@ -1,5 +1,6 @@
 #include "tokenizer.h"
 #include "util.h"
+#include "syntax.h"
 
 namespace asc
 {

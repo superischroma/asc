@@ -5,6 +5,8 @@
 #include <map>
 #include <fstream>
 
+#include "syntax.h"
+
 namespace asc
 {
     int strlen(const char* str);
@@ -13,7 +15,7 @@ namespace asc
     std::map<std::string, std::string> map_cfg_file(std::ifstream& is);
     std::string to_lowercase(std::string str);
     std::string to_uppercase(std::string str);
-    std::string stringify(std::deque<std::string>& dq);
+    std::string stringify(std::deque<asc::rpn_element>& dq);
 }
 
 #endif

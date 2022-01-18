@@ -8,6 +8,8 @@
 
 namespace asc
 {
+    typedef unsigned short visibility;
+
     typedef unsigned int symbol_variant;
     namespace symbol_variants
     {

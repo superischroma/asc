@@ -90,13 +90,13 @@ namespace asc
         return str;
     }
 
-    std::string stringify(std::deque<std::string>& dq)
+    std::string stringify(std::deque<asc::rpn_element>& dq)
     {
         std::string str;
         for (auto it = dq.begin(); it != dq.end(); it++)
         {
             if (it != dq.begin()) str += ' ';
-            str += *it;
+            str += it->value;
         }
         return str;
     }

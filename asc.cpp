@@ -2,13 +2,11 @@
 #include <fstream>
 #include <map>
 
-#include "syntax.h"
-#include "tokenizer.h"
-#include "logger.h"
-#include "parser.h"
-#include "util.h"
 #include "cli.h"
-#include "asc.h"
+#include "logger.h"
+#include "util.h"
+#include "tokenizer.h"
+#include "parser.h"
 
 std::string SRC_ASSEMBLER = "nasm";
 std::string SRC_LINKER = "gcc";

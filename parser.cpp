@@ -866,10 +866,12 @@ namespace asc
 
     evaluation_state parser::experimental_eval_expression(syntax_node*& lcurrent)
     {
-        std::deque<std::string> output;
+        std::deque<rpn_element> output;
         std::stack<expression_operator> operators;
 
         syntax_node* previous_node = nullptr;
+        std::stack<function_symbol*> functions;
+        std::stack<int> call_indices;
 
         // shunting-yard algorithm: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
         for (syntax_node* previous_node = nullptr; *lcurrent != ";"; previous_node = lcurrent, lcurrent = lcurrent->next)
@@ -885,7 +887,10 @@ namespace asc
             }
             std::string& value = *(lcurrent->value);
             if (is_numerical(value))
-                output.push_back(value);
+            {
+                output.push_back({ value, nullptr, !call_indices.empty() ? call_indices.top() : -1,
+                    !functions.empty() ? functions.top() : nullptr });
+            }
             else if (OPERATORS.count(value))
             {
                 expression_operator oper = OPERATORS[value];
@@ -913,15 +918,24 @@ namespace asc
                 while (!operators.empty() && operators.top().value != "(" && (operators.top().precedence > oper.precedence ||
                     (operators.top().precedence == oper.precedence && oper.association)))
                 {
-                    output.push_back(operators.top().value);
+                    output.push_back({ operators.top().value, &oper,
+                        !call_indices.empty() ? call_indices.top() : -1,
+                        !functions.empty() ? functions.top() : nullptr });
                     operators.pop();
                 }
+
+                if (oper.value == "," && !call_indices.empty()) // if it's a comma
+                    call_indices.top()++; // add one to the index
 
                 if (!oper.helper)
                     operators.push(oper);
             }
             else if (lcurrent->next != nullptr && *(lcurrent->next) == "(")
+            {
+                call_indices.push(0);
+                functions.push(static_cast<function_symbol*>(symbol_table_get(*(lcurrent->value))));
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
+            }
             else if (*(lcurrent) == "(")
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR });
             else if (*(lcurrent) == ")")
@@ -934,7 +948,9 @@ namespace asc
                         return STATE_SYNTAX_ERROR;
                     }
                     if (operators.top().value == "(") break;
-                    output.push_back(operators.top().value);
+                    output.push_back({ operators.top().value, nullptr,
+                        !call_indices.empty() ? call_indices.top() : -1,
+                        !functions.empty() ? functions.top() : nullptr });
                     operators.pop();
                 }
                 if (operators.empty() || operators.top().value != "(")
@@ -945,12 +961,18 @@ namespace asc
                 operators.pop();
                 if (!operators.empty() && operators.top().function)
                 {
-                    output.push_back(operators.top().value);
+                    call_indices.pop();
+                    functions.pop();
+                    output.push_back({ operators.top().value });
                     operators.pop();
                 }
             }
             else
-                output.push_back(*(lcurrent->value));
+            {
+                output.push_back({ *(lcurrent->value), nullptr,
+                    !call_indices.empty() ? call_indices.top() : -1,
+                    !functions.empty() ? functions.top() : nullptr });
+            }
         }
 
         while (!operators.empty())
@@ -960,23 +982,29 @@ namespace asc
                 asc::err("left parenthesis invalid");
                 return STATE_SYNTAX_ERROR;
             }
-            output.push_back(operators.top().value);
+            output.push_back({ operators.top().value, nullptr,
+                !call_indices.empty() ? call_indices.top() : -1,
+                !functions.empty() ? functions.top() : nullptr });
             operators.pop();
         }
         
         lcurrent = lcurrent->next; // skip over the semicolon which denoted the end of the expression
         current = lcurrent; // sync up our local current with the object member
 
+        int stack_uses = 0;
+
         // iterate over the reverse polish notation form of the expression which was parsed
         for (auto it = output.begin(); it != output.end(); it++)
         {
             asc::debug("expression evaluation state: " + stringify(output));
-            std::string& token = *it;
-            symbol* sym = symbol_table_get(token);
-            if (OPERATORS.count(token))
+            rpn_element* element = &*it;
+            std::string* token = &(element->value);
+            asc::debug(" ^ currently evaluating for: " + *token);
+            symbol* sym = symbol_table_get(*token);
+            if (OPERATORS.count(*token))
             {
-                auto& oper = OPERATORS[token];
-                std::array<std::string, 3> operands;
+                auto& oper = OPERATORS[*token];
+                std::array<rpn_element, 3> operands;
                 int append_index = -1;
                 if (it - oper.operands < output.begin())
                 {
@@ -986,57 +1014,101 @@ namespace asc
                 for (int i = 0; i < oper.operands; i++)
                 {
                     operands[i] = *(it - (oper.operands - i)); // extract operand
+                    asc::debug("extracted operand for operator " + *token + ": " + operands[i].value);
                     it = output.erase(it - (oper.operands - i)) + (oper.operands - i - 1); // delete operand from deque
-                    if (operands[i] == "..") // if it's the append indicator
+                    asc::debug("iterator put back at " + it->value);
+                    if (operands[i].value == "..") // if it's the append indicator
                     {
                         append_index = i; // identify the index
                         continue; // skip
                     }
-                    symbol* op_symbol = symbol_table_get(operands[i]);
+                    symbol* op_symbol = symbol_table_get(operands[i].value);
                     if (op_symbol == nullptr) // if the current operand isn't a symbol
                     {
-                        if (!is_numerical(operands[i])) // if it's also not a numerical value
+                        if (!is_numerical(operands[i].value)) // if it's also not a numerical value
                         {
                             asc::err("symbol is not defined"); // throw an error
                             return STATE_SYNTAX_ERROR;
                         }
                     }
                     else
-                        operands[i] = "[rbp - " + std::to_string(op_symbol->offset) + ']'; // set the operand value as its location in the program
+                    {
+                        operands[i] = { "[rbp - " + std::to_string(op_symbol->offset) + ']',
+                            operands[i].operator_data, operands[i].parameter_index };
+                        // set the operand value as its location in the program
+                    }
                 }
+                element = &*it;          // refresh these two values because
+                token = &(element->value);  // of iterator invalidation
+                std::string destination = "";
+                if (element->parameter_index >= 0 && element->parameter_index <= 3)
+                    destination = ARG_REGISTER_SEQUENCE[element->parameter_index];
+                if (element->parameter_index > 3)
+                    destination = "stack"; // empty string indicating it should go to stack
+                asc::debug("destination set for " + *token + " operation: " + destination);
+                bool specific_destination = !destination.empty();
+                bool stack_destination = destination == "stack";
                 bool first = append_index == -1; // is this operation the first part of this expression?
                 if (oper.value == "+")
                 {
                     if (first) // if it's first 
                     {
-                        as.instruct(scope->name(), "mov rax, " + operands[0]); // move in the first operand
-                        as.instruct(scope->name(), "add rax, " + operands[1]); // add the second operand
+                        as.instruct(scope->name(), "mov rax, " + operands[0].value); // move in the first operand
+                        as.instruct(scope->name(), "add rax, " + operands[1].value); // add the second operand
                     }
                     else
-                        as.instruct(scope->name(), "add rax, " + operands[!append_index]); // no special things because of communative property of addition
+                    {
+                        stack_uses--;
+                        retrieve_value("rax");
+                        as.instruct(scope->name(), "add rax, " + operands[!append_index].value); // no special things because of communative property of addition
+                    }
                 }
                 else if (oper.value == "=")
                 {
                     if (first)
                     {
-                        as.instruct(scope->name(), "mov rax, " + operands[1]);
-                        as.instruct(scope->name(), "mov " + operands[0] + ", rax");
+                        as.instruct(scope->name(), "mov rax, " + operands[1].value);
+                        as.instruct(scope->name(), "mov " + operands[0].value + ", rax");
                     }
                     else
-                        as.instruct(scope->name(), "mov " + operands[!append_index] + ", rax");
+                    {
+                        stack_uses--;
+                        retrieve_value("rax");
+                        as.instruct(scope->name(), "mov " + operands[!append_index].value + ", rax");
+                    }
                 }
                 else
                 {
                     asc::err("unimplemented operator used");
                     return STATE_SYNTAX_ERROR;
                 }
-                token = "..";
+                if (specific_destination)
+                {
+                    if (stack_destination)
+                    {
+                        asc::err("4+ argument functions are a work in progress!");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    else
+                        as.instruct(scope->name(), "mov " + destination + ", rax");
+                }
+                else
+                {
+                    stack_uses++;
+                    preserve_value("rax");
+                }
+                asc::debug("element value for " + *token + " has been set to expander");
+                element->value = "..";
             }
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
             {
                 function_symbol* f_sym = static_cast<function_symbol*>(sym);
+                as.instruct(scope->name(), "call " + f_sym->m_name);
             }
         }
+
+        for (int i = 0; i < stack_uses; i++)
+            retrieve_value("rax");
 
         return STATE_FOUND;
     }

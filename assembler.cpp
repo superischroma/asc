@@ -1,4 +1,5 @@
 #include "assembler.h"
+#include "logger.h"
 
 namespace asc
 {

@@ -7,8 +7,6 @@
 #include <set>
 #include <stdexcept>
 
-#include "symbol.h"
-
 namespace asc
 {
     typedef std::string register_resolvable;

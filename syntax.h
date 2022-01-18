@@ -16,6 +16,14 @@
 namespace asc // Forward declarations
 {
     class syntax_node;
+}
+
+#include "symbol.h" // christ almighty
+
+namespace asc
+{
+    class function_symbol; // forward declaration
+
     typedef unsigned short visibility;
     typedef unsigned short primitive;
 
@@ -32,11 +40,18 @@ namespace asc // Forward declarations
         bool function = false;
     } expression_operator;
 
+    typedef struct
+    {
+        std::string value;
+        expression_operator* operator_data = nullptr;
+        int parameter_index = -1;
+        function_symbol* function;
+    } rpn_element;
+
     extern std::map<std::string, expression_operator> OPERATORS;
 }
 
 #include "assembler.h"
-#include "symbol.h"
 #include "logger.h"
 #include "util.h"
 

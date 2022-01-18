@@ -4,9 +4,7 @@
 #include <map>
 #include <stack>
 
-#include "syntax.h"
-#include "assembler.h"
-#include "logger.h"
+#include "symbol.h"
 #include "asc.h"
 
 namespace asc
