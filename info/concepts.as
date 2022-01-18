@@ -117,6 +117,7 @@ private int getY(Point p)
 private void setY(Point* p, int ny)
 {
     (*p).y = ny; # Dereferencing p and setting y to ny
+    p->y = ny; # Shorthand
 }
 
 #######################

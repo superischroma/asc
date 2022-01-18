@@ -1,5 +1,8 @@
 #include <stdexcept>
 #include <algorithm>
+#include <queue>
+#include <stack>
+#include <array>
 
 #include "parser.h"
 
@@ -188,8 +191,8 @@ namespace asc
             asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
         }
-        symbol* function_symbol = symbol_table_insert(identifier, new asc::symbol(identifier, t,
-            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope));
+        function_symbol* f_symbol = static_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, t,
+            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, 0)));
         //asc::debug("defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -214,16 +217,17 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             int ai_line = lcurrent->line;
             std::string& a_identifier = *(lcurrent->value); // get the identifier that MIGHT be there
-            if (symbol_table_get_imm(a_identifier, function_symbol) != nullptr) // if symbol already exists in this scope
+            if (symbol_table_get_imm(a_identifier, f_symbol) != nullptr) // if symbol already exists in this scope
             {
                 asc::err("symbol is already defined", ai_line);
                 return STATE_SYNTAX_ERROR;
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
-                symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, function_symbol));
+                symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
+            f_symbol->parameter_count++; // add parameter to count
             a_symbol->offset = s += 8;
             if (c <= 4)
-                as.instruct(function_symbol->name(), "mov " + get_word(at_size) + " [rbp - " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
+                as.instruct(f_symbol->name(), "mov " + get_word(at_size) + " [rbp - " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
             //asc::debug("defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -245,7 +249,7 @@ namespace asc
             asc::err("expected a left curly brace to start function", lcurrent->line);
             return STATE_SYNTAX_ERROR;
         }
-        scope = function_symbol; // scope into function
+        scope = f_symbol; // scope into function
         lcurrent = lcurrent->next; // move into the function
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
@@ -818,12 +822,230 @@ namespace asc
         return eval_expression(current, nullptr);
     }
 
-    /*
-    evaluation_state n_eval_expression(syntax_node*& lcurrent)
+    evaluation_state parser::eval_var_declaration(syntax_node*& lcurrent)
     {
-
+        syntax_node* slcurrent = lcurrent;
+        if (check_eof(slcurrent, true))
+            return STATE_NEUTRAL;
+        visibility v = scope != nullptr ? visibilities::LOCAL : visibilities::value_of(to_uppercase(*(slcurrent->value)));
+        if (v != visibilities::INVALID && v != visibilities::LOCAL)
+            slcurrent = slcurrent->next;
+        if (v == visibilities::INVALID)
+            v = visibilities::PRIVATE;
+        if (check_eof(slcurrent, true))
+            return STATE_NEUTRAL;
+        if (!is_type(*(slcurrent->value)))
+            return STATE_NEUTRAL;
+        std::string t = *(slcurrent->value);
+        if (check_eof(slcurrent = slcurrent->next, true))
+            return STATE_NEUTRAL;
+        syntax_node* i_node = slcurrent; // copy identifier syntax node
+        std::string i = *(slcurrent->value);
+        if (symbol_table_get_imm(i) != nullptr) // symbol with this name already exists in this scope
+        {
+            asc::err("symbol is already defined", slcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if (check_eof(slcurrent = slcurrent->next, true))
+            return STATE_NEUTRAL;
+        if (*(slcurrent->value) != "=" && *(slcurrent->value) != ";") // this is NOT a variable declaration (most likely a function declaration)
+            return STATE_NEUTRAL;
+        lcurrent = i_node; // sync up local with identifier node
+        symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t,
+            (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, scope));
+        if (scope != nullptr)
+            sym->offset = this->reserve_data_space(get_type_size(t));
+        return experimental_eval_expression(i_node);
     }
-    */
+
+    evaluation_state parser::eval_var_declaration()
+    {
+        syntax_node* current = this->current;
+        return eval_var_declaration(current);
+    }
+
+    evaluation_state parser::experimental_eval_expression(syntax_node*& lcurrent)
+    {
+        std::deque<std::string> output;
+        std::stack<expression_operator> operators;
+
+        syntax_node* previous_node = nullptr;
+
+        // shunting-yard algorithm: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+        for (syntax_node* previous_node = nullptr; *lcurrent != ";"; previous_node = lcurrent, lcurrent = lcurrent->next)
+        {
+            if (lcurrent == nullptr)
+            {
+                if (!output.empty() || !operators.empty())
+                {
+                    asc::err("unexpected end of expression");
+                    return STATE_SYNTAX_ERROR;
+                }
+                return STATE_NEUTRAL;
+            }
+            std::string& value = *(lcurrent->value);
+            if (is_numerical(value))
+                output.push_back(value);
+            else if (OPERATORS.count(value))
+            {
+                expression_operator oper = OPERATORS[value];
+
+                int operands = 2;
+                char c_fix = 'i';
+
+                // manual prefix check
+                if (previous_node == nullptr || *previous_node == "(" || OPERATORS.count(*(previous_node->value)))
+                {
+                    c_fix = 'p';
+                    operands = 1;
+                }
+
+                // manual suffix check
+                if (lcurrent->next == nullptr || *(lcurrent->next) == ")" || OPERATORS.count(*(lcurrent->next->value)))
+                {
+                    c_fix = 's';
+                    operands = 1;
+                }
+
+                if (OPERATORS.count(value + std::to_string(operands) + c_fix))
+                    oper = OPERATORS[value + std::to_string(operands) + c_fix];
+
+                while (!operators.empty() && operators.top().value != "(" && (operators.top().precedence > oper.precedence ||
+                    (operators.top().precedence == oper.precedence && oper.association)))
+                {
+                    output.push_back(operators.top().value);
+                    operators.pop();
+                }
+
+                if (!oper.helper)
+                    operators.push(oper);
+            }
+            else if (lcurrent->next != nullptr && *(lcurrent->next) == "(")
+                operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
+            else if (*(lcurrent) == "(")
+                operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR });
+            else if (*(lcurrent) == ")")
+            {
+                while (true)
+                {
+                    if (operators.empty())
+                    {
+                        asc::err("closing parenthesis with no opening", lcurrent->line);
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    if (operators.top().value == "(") break;
+                    output.push_back(operators.top().value);
+                    operators.pop();
+                }
+                if (operators.empty() || operators.top().value != "(")
+                {
+                    asc::err("opening parenthesis expected", lcurrent->line);
+                    return STATE_SYNTAX_ERROR;
+                }
+                operators.pop();
+                if (!operators.empty() && operators.top().function)
+                {
+                    output.push_back(operators.top().value);
+                    operators.pop();
+                }
+            }
+            else
+                output.push_back(*(lcurrent->value));
+        }
+
+        while (!operators.empty())
+        {
+            if (operators.top().value == "(")
+            {
+                asc::err("left parenthesis invalid");
+                return STATE_SYNTAX_ERROR;
+            }
+            output.push_back(operators.top().value);
+            operators.pop();
+        }
+        
+        lcurrent = lcurrent->next; // skip over the semicolon which denoted the end of the expression
+        current = lcurrent; // sync up our local current with the object member
+
+        // iterate over the reverse polish notation form of the expression which was parsed
+        for (auto it = output.begin(); it != output.end(); it++)
+        {
+            asc::debug("expression evaluation state: " + stringify(output));
+            std::string& token = *it;
+            symbol* sym = symbol_table_get(token);
+            if (OPERATORS.count(token))
+            {
+                auto& oper = OPERATORS[token];
+                std::array<std::string, 3> operands;
+                int append_index = -1;
+                if (it - oper.operands < output.begin())
+                {
+                    asc::err("operator expected " + std::to_string(oper.operands) + " operand" + (oper.operands != 1 ? "s" : ""));
+                    return STATE_SYNTAX_ERROR;
+                }
+                for (int i = 0; i < oper.operands; i++)
+                {
+                    operands[i] = *(it - (oper.operands - i)); // extract operand
+                    it = output.erase(it - (oper.operands - i)) + (oper.operands - i - 1); // delete operand from deque
+                    if (operands[i] == "..") // if it's the append indicator
+                    {
+                        append_index = i; // identify the index
+                        continue; // skip
+                    }
+                    symbol* op_symbol = symbol_table_get(operands[i]);
+                    if (op_symbol == nullptr) // if the current operand isn't a symbol
+                    {
+                        if (!is_numerical(operands[i])) // if it's also not a numerical value
+                        {
+                            asc::err("symbol is not defined"); // throw an error
+                            return STATE_SYNTAX_ERROR;
+                        }
+                    }
+                    else
+                        operands[i] = "[rbp - " + std::to_string(op_symbol->offset) + ']'; // set the operand value as its location in the program
+                }
+                bool first = append_index == -1; // is this operation the first part of this expression?
+                if (oper.value == "+")
+                {
+                    if (first) // if it's first 
+                    {
+                        as.instruct(scope->name(), "mov rax, " + operands[0]); // move in the first operand
+                        as.instruct(scope->name(), "add rax, " + operands[1]); // add the second operand
+                    }
+                    else
+                        as.instruct(scope->name(), "add rax, " + operands[!append_index]); // no special things because of communative property of addition
+                }
+                else if (oper.value == "=")
+                {
+                    if (first)
+                    {
+                        as.instruct(scope->name(), "mov rax, " + operands[1]);
+                        as.instruct(scope->name(), "mov " + operands[0] + ", rax");
+                    }
+                    else
+                        as.instruct(scope->name(), "mov " + operands[!append_index] + ", rax");
+                }
+                else
+                {
+                    asc::err("unimplemented operator used");
+                    return STATE_SYNTAX_ERROR;
+                }
+                token = "..";
+            }
+            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
+            {
+                function_symbol* f_sym = static_cast<function_symbol*>(sym);
+            }
+        }
+
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::experimental_eval_expression()
+    {
+        syntax_node* current = this->current;
+        return experimental_eval_expression(current);
+    }
 
     evaluation_state parser::eval_type_construct(syntax_node*& lcurrent)
     {
@@ -885,7 +1107,7 @@ namespace asc
             syntax_node* identifier_node = lcurrent;
             sym->members.push_back(identifier_node);
             symbol_table_insert(identifier, new symbol(identifier, t, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
-                visibilities::PUBLIC, dynamic_cast<symbol*>(sym)));
+                visibilities::PUBLIC, static_cast<symbol*>(sym)));
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
             if (lcurrent == nullptr)
                 return STATE_SYNTAX_ERROR;
@@ -1031,6 +1253,16 @@ namespace asc
         vec.erase(std::remove(vec.begin(), vec.end(), s), vec.end());
         if (vec.empty())
             symbols.erase(s->m_name); // free some memory if we're not using the vector
+    }
+
+    bool parser::is_type(std::string str)
+    {
+        if (primitives::from_display(str) != primitives::INVALID)
+            return true;
+        symbol* sym = symbol_table_get(str);
+        if (sym == nullptr)
+            return false;
+        return sym->variant == symbol_variants::STRUCTLIKE_TYPE || sym->variant == symbol_variants::OBJECT;
     }
 
     parser::~parser()

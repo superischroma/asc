@@ -80,4 +80,18 @@ namespace asc
         s += '}';
         return s;
     }
+
+    function_symbol::function_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count):
+        symbol(name, type, variant, vis, scope)
+    {
+        this->parameter_count = parameter_count;
+    }
+
+    std::string function_symbol::to_string()
+    {
+        return "asc::symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
+            asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
+            ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameter_count=" +
+            std::to_string(parameter_count) + '}';
+    }
 }

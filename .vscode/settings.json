@@ -64,6 +64,8 @@
         "xlocbuf": "cpp",
         "xlocmes": "cpp",
         "xlocmon": "cpp",
-        "xloctime": "cpp"
+        "xloctime": "cpp",
+        "list": "cpp",
+        "queue": "cpp"
     }
 }

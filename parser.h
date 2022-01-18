@@ -68,6 +68,10 @@ namespace asc
         evaluation_state eval_use();
         evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
         evaluation_state eval_expression();
+        evaluation_state eval_var_declaration(syntax_node*& lcurrent);
+        evaluation_state eval_var_declaration();
+        evaluation_state experimental_eval_expression(syntax_node*& lcurrent);
+        evaluation_state experimental_eval_expression();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
 
@@ -83,6 +87,9 @@ namespace asc
         symbol* symbol_table_get_imm(std::string name, symbol* scope = nullptr);
         symbol* symbol_table_insert(std::string name, symbol* s);
         void symbol_table_delete(symbol* s);
+
+        // type management
+        bool is_type(std::string str);
 
         // destructor
         ~parser();

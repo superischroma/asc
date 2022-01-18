@@ -53,6 +53,15 @@ namespace asc
         std::string to_string();
     };
 
+    class function_symbol: public symbol
+    {
+    public:
+        int parameter_count;
+
+        function_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
+        std::string to_string();
+    };
+
     /*
     bool operator<(symbol& lhs, symbol& rhs)
     {

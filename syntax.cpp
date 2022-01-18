@@ -3,6 +3,79 @@
 
 namespace asc
 {
+    std::map<std::string, expression_operator> OPERATORS = {
+        // operators which have multiple variants follow these rules:
+        // it will include its number of operands after itself in the key for it
+        // it will have an 's' if it is suffix, 'p' if it is prefix, or 'i' if it is infix
+
+        // name, precedence, operand count, association, fix
+
+        // comma
+        { ",", { ",", 1, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, true } },
+        
+        // assignment operators
+        { "&=", { "&=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "^=", { "^=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "|=", { "|=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "<<=", { "<<=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { ">>=", { ">>=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "*=", { "*=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "/=", { "/=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "%=", { "%=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "+=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "+=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "=", { "=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+
+        // ternary operator
+        { "?", { "?", 2, 3, RIGHT_OPERATOR_ASSOCATION } },
+        { ":", { ":", 2, 3, RIGHT_OPERATOR_ASSOCATION, INFIX_OPERATOR, true } },
+
+        // arithmetic, equality, and bitwise operators
+        { "||", { "||", 3, 2 } },
+        { "&&", { "&&", 4, 2 } },
+        { "==", { "==", 5, 2 } },
+        { "!=", { "!=", 5, 2 } },
+        { "<", { "<", 6, 2 } },
+        { "<=", { "<=", 6, 2 } },
+        { ">", { ">", 6, 2 } },
+        { ">=", { ">=", 6, 2 } },
+        { "<=>", { "<=>", 7, 2 } },
+        { "|", { "|", 8, 2 } },
+        { "^", { "^", 9, 2 } },
+        { "&", { "&", 10, 2 } },
+        { "<<", { "<<", 11, 2 } },
+        { ">>", { ">>", 11, 2 } },
+        { "+", { "+", 12, 2 } },
+        { "-", { "-", 12, 2 } },
+        { "*", { "*", 13, 2 } },
+        { "/", { "/", 13, 2 } },
+        { "%", { "%", 13, 2 } },
+        // precedence level 14 reserved for pointer-to-member operator cuz ion know how it works rn lol
+
+        // prefix-only unary operators
+        { "&1p", { "&", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "*1p", { "*", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "!", { "!", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "~", { "~", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "+1p", { "+", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "-1p", { "-", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "++", { "++", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+        { "--", { "--", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+
+        // object-oriented member resolution operators
+        { ".", { ".", 16, 2, LEFT_OPERATOR_ASSOCATION }},
+        { "->", { "->", 16, 2, LEFT_OPERATOR_ASSOCATION }},
+
+        // suffix operators
+        { "[", { "[", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR }},
+        { "]", { "]", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR, true }},
+        { "++1s", { "++", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR } },
+        { "--1s", { "--", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR } },
+
+        // scope resolution operator
+        { "::", { "::", 17, 2, LEFT_OPERATOR_ASSOCATION } }
+    };
+
     std::map<std::string, asc::syntax_node*> TYPES = {
         { "void", nullptr },
         { "byte", nullptr },
@@ -101,7 +174,7 @@ namespace asc
                 return PRIMITIVE_FLOAT;
             if (name == "double")
                 return PRIMITIVE_DOUBLE;
-            return -1;
+            return INVALID;
         }
     }
 
@@ -122,7 +195,7 @@ namespace asc
         "@"
     };
 
-    const char* OPERATORS[] = {
+    const char* OPERATORS_OLD[] = {
         "=",
         "+",
         "-",
@@ -154,9 +227,9 @@ namespace asc
 
     int get_operator(std::string& test)
     {
-        for (int i = 0; i < sizeof(OPERATORS) / sizeof(OPERATORS[0]); i++)
+        for (int i = 0; i < sizeof(OPERATORS_OLD) / sizeof(OPERATORS_OLD[0]); i++)
         {
-            if (OPERATORS[i] == test)
+            if (OPERATORS_OLD[i] == test)
                 return i;
         }
         return -1;
@@ -175,6 +248,8 @@ namespace asc
 
     bool is_numerical(std::string& test)
     {
+        if (test == ".")
+            return false;
         int i = 0;
         for (; test[i] == '0' ||
             test[i] == '1' ||

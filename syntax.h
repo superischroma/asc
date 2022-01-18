@@ -4,12 +4,35 @@
 #include <string>
 #include <type_traits>
 #include <regex>
+#include <map>
+
+#define LEFT_OPERATOR_ASSOCATION true
+#define RIGHT_OPERATOR_ASSOCATION false
+
+#define PREFIX_OPERATOR 0
+#define INFIX_OPERATOR 1
+#define SUFFIX_OPERATOR 2
 
 namespace asc // Forward declarations
 {
     class syntax_node;
     typedef unsigned short visibility;
     typedef unsigned short primitive;
+
+    typedef bool operator_association;
+    typedef unsigned char operator_fix;
+    typedef struct
+    {
+        std::string value;
+        int precedence = 0;
+        int operands = 2;
+        operator_association association = LEFT_OPERATOR_ASSOCATION;
+        operator_fix fix = INFIX_OPERATOR;
+        bool helper = false;
+        bool function = false;
+    } expression_operator;
+
+    extern std::map<std::string, expression_operator> OPERATORS;
 }
 
 #include "assembler.h"
@@ -45,6 +68,7 @@ namespace asc
 
     namespace primitives
     {
+        const unsigned short INVALID = -1;
         const unsigned short PRIMITIVE_VOID = 0;
         const unsigned short PRIMITIVE_BYTE = 1;
         const unsigned short PRIMITIVE_SHORT = 2;

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <queue>
 
 #include "util.h"
 
@@ -85,6 +86,17 @@ namespace asc
             if (str[i] >= 'A' && str[i] <= 'Z')
                 continue;
             str[i] -= ' ';
+        }
+        return str;
+    }
+
+    std::string stringify(std::deque<std::string>& dq)
+    {
+        std::string str;
+        for (auto it = dq.begin(); it != dq.end(); it++)
+        {
+            if (it != dq.begin()) str += ' ';
+            str += *it;
         }
         return str;
     }

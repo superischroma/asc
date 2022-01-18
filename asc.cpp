@@ -93,7 +93,82 @@ int main(int argc, char* argv[])
 }
 namespace asc
 {
-    int compile(std::string filepath)
+    int experimental_compile(std::string& filepath)
+    {
+        if (!asc::ends_with(filepath, ".as"))
+        {
+            asc::err(filepath + " is not A# source code");
+            return -1;
+        }
+        std::ifstream is = std::ifstream(filepath);
+        asc::tokenizer tk = asc::tokenizer(is);
+        for (std::string token; tk.extractable();)
+            tk >> token;
+        for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
+            asc::debug(current->stringify());
+        asc::parser ps = asc::parser(tk.syntax_start());
+        while (ps.parseable())
+        {
+            asc::debug("token: " + *(ps.current->value));
+            asc::evaluation_state es_be = ps.eval_block_ending();
+            asc::debug("block ending: " + std::to_string((int) es_be));
+            if (es_be == asc::STATE_FOUND)
+                continue;
+            if (es_be == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_ue = ps.eval_use();
+            asc::debug("use: " + std::to_string((int) es_ue));
+            if (es_ue == asc::STATE_FOUND)
+                continue;
+            if (es_ue == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_fd = ps.eval_function_decl();
+            asc::debug("function decl: " + std::to_string((int) es_fd));
+            if (es_fd == asc::STATE_FOUND)
+                continue;
+            if (es_fd == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_vd = ps.eval_var_declaration();
+            asc::debug("variable decl: " + std::to_string((int) es_vd));
+            if (es_vd == asc::STATE_FOUND)
+                continue;
+            if (es_vd == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_exp = ps.experimental_eval_expression();
+            asc::debug("expression: " + std::to_string((int) es_exp));
+            if (es_exp == asc::STATE_FOUND)
+                continue;
+            if (es_exp == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::err("unknown statement", ps.current->line);
+            return -1;
+        }
+        asc::symbol* entry = ps.symbol_table_get(ps.as.entry);
+        if (entry == nullptr)
+        {
+            asc::err("no entry point found in program");
+            return -1;
+        }
+        std::string asmfn = filepath.substr(0, filepath.length() - 3) + ".asm";
+        std::ofstream os = std::ofstream(asmfn, std::ios::trunc);
+        std::string constructed = ps.as.construct();
+        os.write(constructed.c_str(), constructed.length());
+        os.close();
+        is.close();
+        asc::info("source code of \"" + filepath + "\" has been successfully converted to assembly");
+        if (SRC_ASSEMBLER == "nasm")
+            system(("nasm -fwin64 " + asmfn).c_str());
+        else
+        {
+            asc::err("assembling \"" + filepath + "\" with unsupported assembler");
+            return -1;
+        }
+        asc::info("assembly code of \"" + asmfn + "\" has been successfully converted to object code");
+        OBJECT_FILES.push_back(filepath.substr(0, filepath.length() - 3) + ".obj");
+        return 0;
+    }
+    
+    int stable_compile(std::string& filepath)
     {
         if (!asc::ends_with(filepath, ".as"))
         {
@@ -193,6 +268,14 @@ namespace asc
         asc::info("assembly code of \"" + asmfn + "\" has been successfully converted to object code");
         OBJECT_FILES.push_back(filepath.substr(0, filepath.length() - 3) + ".obj");
         return 0;
+    }
+
+    int compile(std::string filepath)
+    {
+        if (!has_option_set(args, cli_options::EXPERIMENTAL)) // if we're not in experimental mode
+            return stable_compile(filepath);
+        else
+            return experimental_compile(filepath);
     }
 
     int visually_tokenize(std::string filepath)
