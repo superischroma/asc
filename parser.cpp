@@ -991,6 +991,30 @@ namespace asc
         lcurrent = lcurrent->next; // skip over the semicolon which denoted the end of the expression
         current = lcurrent; // sync up our local current with the object member
 
+        for (auto it = output.begin(); it != output.end(); it++)
+        {
+
+        }
+
+        /*
+
+        function_argument_segment:
+            rpn_element* start;
+            rpn_element* end;
+
+        first iteration: push all function argument segments to a stack
+        second iteration:
+            parse like normal (except if you encounter any function parameters) until reach a function name
+            once you reach a function name:
+                pop [function parameter count] parameters off of the segment stack and parse them like normal
+                every time one is popped off, push it to the stack if its index is >= 4 or the specific register if it is < 4
+                call function
+                replace function name in queue with ..
+                push result of function to stack
+
+        */
+
+        /*
         int stack_uses = 0;
 
         // iterate over the reverse polish notation form of the expression which was parsed
@@ -1038,7 +1062,7 @@ namespace asc
                         // set the operand value as its location in the program
                     }
                 }
-                element = &*it;          // refresh these two values because
+                element = &*it;             // refresh these two values because
                 token = &(element->value);  // of iterator invalidation
                 std::string destination = "";
                 if (element->parameter_index >= 0 && element->parameter_index <= 3)
@@ -1086,7 +1110,7 @@ namespace asc
                 {
                     if (stack_destination)
                     {
-                        asc::err("4+ argument functions are a work in progress!");
+                        asc::err("5+ argument functions are a work in progress!");
                         return STATE_SYNTAX_ERROR;
                     }
                     else
@@ -1103,12 +1127,43 @@ namespace asc
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
             {
                 function_symbol* f_sym = static_cast<function_symbol*>(sym);
+                if (f_sym->parameter_count > 4)
+                {
+                    asc::err("5+ argument functions are a work in progress!");
+                }
+                for (int i = 0; i < f_sym->parameter_count; i++)
+                {
+                    auto arg = *(it - 1);
+                    std::string rhs = arg.value;
+                    it = output.erase(it - 1); // erase it
+                    if (arg.value == "..") // already handled
+                        continue; // skip
+                    symbol* op_symbol = symbol_table_get(arg.value);
+                    if (op_symbol == nullptr) // if the current operand isn't a symbol
+                    {
+                        if (!is_numerical(arg.value)) // if it's also not a numerical value
+                        {
+                            asc::err("symbol is not defined"); // throw an error
+                            return STATE_SYNTAX_ERROR;
+                        }
+                    }
+                    else
+                    {
+                        rhs = "[rbp - " + std::to_string(op_symbol->offset) + ']';
+                        // set the operand value as its location in the program
+                    }
+                    as.instruct(scope->name(), std::string("mov ") + ARG_REGISTER_SEQUENCE[f_sym->parameter_count - 1 - i] + ", " + rhs);
+                }
                 as.instruct(scope->name(), "call " + f_sym->m_name);
+                element = &*it;             // refresh these two values because
+                token = &(element->value);  // of iterator invalidation
+                element->value = "..";
             }
         }
 
         for (int i = 0; i < stack_uses; i++)
             retrieve_value("rax");
+        */
 
         return STATE_FOUND;
     }
@@ -1117,6 +1172,21 @@ namespace asc
     {
         syntax_node* current = this->current;
         return experimental_eval_expression(current);
+    }
+
+    evaluation_state parser::experimental_eval_return_statement(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*lcurrent != "return")
+            return STATE_NEUTRAL;
+        return experimental_eval_expression(lcurrent = lcurrent->next);
+    }
+
+    evaluation_state parser::experimental_eval_return_statement()
+    {
+        syntax_node* current = this->current;
+        return experimental_eval_return_statement(current);
     }
 
     evaluation_state parser::eval_type_construct(syntax_node*& lcurrent)

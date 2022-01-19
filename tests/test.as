@@ -1,9 +1,14 @@
-public void nothing()
-{
+use printf;
 
+public int add(int x, int y)
+{
+    return x + y;
 }
 
 public int main()
 {
-    nothing(5 + 3, 8 + 9, 7 + 1);
+    int x = 5;
+    int y = 10;
+    int z = add(x, y);
+    printf("%d", z);
 }

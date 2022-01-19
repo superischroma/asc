@@ -70,6 +70,8 @@ namespace asc
         evaluation_state eval_var_declaration();
         evaluation_state experimental_eval_expression(syntax_node*& lcurrent);
         evaluation_state experimental_eval_expression();
+        evaluation_state experimental_eval_return_statement(syntax_node*& lcurrent);
+        evaluation_state experimental_eval_return_statement();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
 

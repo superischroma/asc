@@ -42,3 +42,12 @@
 
 # Journal entries for school project
 /journals
+
+# CMake build crap
+/cmake-build-debug
+
+# VS Code data
+/.vscode
+
+# CLion
+/.idea

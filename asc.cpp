@@ -120,6 +120,12 @@ namespace asc
                 continue;
             if (es_ue == asc::STATE_SYNTAX_ERROR)
                 return -1;
+            asc::evaluation_state es_rs = ps.experimental_eval_return_statement();
+            asc::debug("return statement: " + std::to_string((int) es_rs));
+            if (es_rs == asc::STATE_FOUND)
+                continue;
+            if (es_rs == asc::STATE_SYNTAX_ERROR)
+                return -1;
             asc::evaluation_state es_fd = ps.eval_function_decl();
             asc::debug("function decl: " + std::to_string((int) es_fd));
             if (es_fd == asc::STATE_FOUND)
