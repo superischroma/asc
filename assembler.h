@@ -6,6 +6,7 @@
 #include <vector>
 #include <set>
 #include <stdexcept>
+#include <queue>
 
 namespace asc
 {
@@ -25,6 +26,7 @@ namespace asc
         int preserved_data;
         std::string ending;
         subroutine* parent;
+        std::queue<std::string> data_queue;
         std::vector<subroutine*>* children;
 
         subroutine(std::string name, subroutine* parent);
@@ -50,6 +52,10 @@ namespace asc
         assembler& enter(std::string&& subroutine);
         assembler& instruct(std::string& subroutine, std::string instruction);
         assembler& instruct(std::string&& subroutine, std::string instruction);
+        assembler& queue_instruction(std::string& subroutine, std::string instruction);
+        assembler& queue_instruction(std::string&& subroutine, std::string instruction);
+        assembler& release(std::string& subroutine);
+        assembler& release(std::string&& subroutine);
         assembler& external(std::string identifier);
         asc::subroutine*& sr(std::string& name, subroutine* parent);
         asc::subroutine*& sr(std::string& name);

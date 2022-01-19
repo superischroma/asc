@@ -183,6 +183,33 @@ namespace asc
         return instruct(subroutine, instruction);
     }
 
+    assembler& assembler::queue_instruction(std::string& subroutine, std::string instruction)
+    {
+        asc::subroutine*& sr = subroutines[subroutine];
+        if (sr == nullptr)
+            sr = new asc::subroutine(subroutine, nullptr);
+        sr->data_queue.push(instruction);
+        return *this;
+    }
+
+    assembler& assembler::queue_instruction(std::string&& subroutine, std::string instruction)
+    {
+        return queue_instruction(subroutine, instruction);
+    }
+
+    assembler& assembler::release(std::string& subroutine)
+    {
+        asc::subroutine*& sr = subroutines[subroutine];
+        if (sr != nullptr && !sr->data_queue.empty())
+            instruct(subroutine, sr->data_queue.front());
+        return *this;
+    }
+
+    assembler& assembler::release(std::string&& subroutine)
+    {
+        return release(subroutine);
+    }
+
     assembler& assembler::external(std::string identifier)
     {
         ext.insert(identifier);

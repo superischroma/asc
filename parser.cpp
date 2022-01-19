@@ -10,6 +10,12 @@
 
 namespace asc
 {
+    typedef struct
+    {
+        rpn_element* start;
+        rpn_element* end;
+    } function_argument_segment;
+
     symbol* invalid_symbol = nullptr;
 
     evaluation_state parser::recur_func_stack_args(syntax_node*& lcurrent, bool exp)
@@ -864,6 +870,19 @@ namespace asc
         return eval_var_declaration(current);
     }
 
+    void parser::expression_instruct(std::string&& subroutine, std::string instruction,
+        std::map<std::string, std::vector<std::queue<std::string>>>& fam, function_symbol* func, int index)
+    {
+        if (func != nullptr)
+        {
+            auto& list = fam[func->m_name];
+            if (index >= list.size()) list.resize(index + 1);
+            list[index].push(instruction);
+        }
+        else
+            as.instruct(scope->name(), instruction);
+    }
+
     evaluation_state parser::experimental_eval_expression(syntax_node*& lcurrent)
     {
         std::deque<rpn_element> output;
@@ -963,7 +982,9 @@ namespace asc
                 {
                     call_indices.pop();
                     functions.pop();
-                    output.push_back({ operators.top().value });
+                    output.push_back({ operators.top().value, nullptr,
+                        !call_indices.empty() ? call_indices.top() : -1,
+                        !functions.empty() ? functions.top() : nullptr });
                     operators.pop();
                 }
             }
@@ -991,30 +1012,11 @@ namespace asc
         lcurrent = lcurrent->next; // skip over the semicolon which denoted the end of the expression
         current = lcurrent; // sync up our local current with the object member
 
-        for (auto it = output.begin(); it != output.end(); it++)
-        {
+        // christ almighty pt. 2
+        std::unique_ptr<std::map<std::string, std::vector<std::queue<std::string>>>> f_arg_map =
+            std::make_unique<std::map<std::string, std::vector<std::queue<std::string>>>>();
+        // this is mapping function names to arguments which are lists of instruction queues
 
-        }
-
-        /*
-
-        function_argument_segment:
-            rpn_element* start;
-            rpn_element* end;
-
-        first iteration: push all function argument segments to a stack
-        second iteration:
-            parse like normal (except if you encounter any function parameters) until reach a function name
-            once you reach a function name:
-                pop [function parameter count] parameters off of the segment stack and parse them like normal
-                every time one is popped off, push it to the stack if its index is >= 4 or the specific register if it is < 4
-                call function
-                replace function name in queue with ..
-                push result of function to stack
-
-        */
-
-        /*
         int stack_uses = 0;
 
         // iterate over the reverse polish notation form of the expression which was parsed
@@ -1077,28 +1079,30 @@ namespace asc
                 {
                     if (first) // if it's first 
                     {
-                        as.instruct(scope->name(), "mov rax, " + operands[0].value); // move in the first operand
-                        as.instruct(scope->name(), "add rax, " + operands[1].value); // add the second operand
+                        expression_instruct(scope->name(), "mov rax, " + operands[0].value,
+                            *f_arg_map, element->function, element->parameter_index); // move in the first operand
+                        expression_instruct(scope->name(), "add rax, " + operands[1].value,
+                            *f_arg_map, element->function, element->parameter_index); // add the second operand
                     }
                     else
                     {
-                        stack_uses--;
-                        retrieve_value("rax");
-                        as.instruct(scope->name(), "add rax, " + operands[!append_index].value); // no special things because of communative property of addition
+                        expression_instruct(scope->name(), "add rax, " + operands[!append_index].value,
+                            *f_arg_map, element->function, element->parameter_index); // no special things because of communative property of addition
                     }
                 }
                 else if (oper.value == "=")
                 {
                     if (first)
                     {
-                        as.instruct(scope->name(), "mov rax, " + operands[1].value);
-                        as.instruct(scope->name(), "mov " + operands[0].value + ", rax");
+                        expression_instruct(scope->name(), "mov rax, " + operands[1].value,
+                            *f_arg_map, element->function, element->parameter_index);
+                        expression_instruct(scope->name(), "mov " + operands[0].value + ", rax",
+                            *f_arg_map, element->function, element->parameter_index);
                     }
                     else
                     {
-                        stack_uses--;
-                        retrieve_value("rax");
-                        as.instruct(scope->name(), "mov " + operands[!append_index].value + ", rax");
+                        expression_instruct(scope->name(), "mov " + operands[!append_index].value + ", rax",
+                            *f_arg_map, element->function, element->parameter_index);
                     }
                 }
                 else
@@ -1110,16 +1114,15 @@ namespace asc
                 {
                     if (stack_destination)
                     {
-                        asc::err("5+ argument functions are a work in progress!");
-                        return STATE_SYNTAX_ERROR;
+                        expression_instruct(scope->name(), "push rax",
+                            *f_arg_map, element->function, element->parameter_index);
                     }
                     else
-                        as.instruct(scope->name(), "mov " + destination + ", rax");
-                }
-                else
-                {
-                    stack_uses++;
-                    preserve_value("rax");
+                    {
+                        expression_instruct(scope->name(), std::string("mov ") +
+                            ARG_REGISTER_SEQUENCE[element->parameter_index] + ", rax", *f_arg_map,
+                            element->function, element->parameter_index);
+                    }
                 }
                 asc::debug("element value for " + *token + " has been set to expander");
                 element->value = "..";
@@ -1127,43 +1130,22 @@ namespace asc
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
             {
                 function_symbol* f_sym = static_cast<function_symbol*>(sym);
-                if (f_sym->parameter_count > 4)
+                auto& q = (*f_arg_map)[f_sym->m_name];
+                for (auto vit = q.end() - 1; vit >= q.begin(); vit--)
                 {
-                    asc::err("5+ argument functions are a work in progress!");
-                }
-                for (int i = 0; i < f_sym->parameter_count; i++)
-                {
-                    auto arg = *(it - 1);
-                    std::string rhs = arg.value;
-                    it = output.erase(it - 1); // erase it
-                    if (arg.value == "..") // already handled
-                        continue; // skip
-                    symbol* op_symbol = symbol_table_get(arg.value);
-                    if (op_symbol == nullptr) // if the current operand isn't a symbol
+                    for (; !(vit->empty()); vit->pop())
                     {
-                        if (!is_numerical(arg.value)) // if it's also not a numerical value
-                        {
-                            asc::err("symbol is not defined"); // throw an error
-                            return STATE_SYNTAX_ERROR;
-                        }
+                        std::cout << "add: " << vit->front() << std::endl;
+                        as.instruct(scope->name(), vit->front());
                     }
-                    else
-                    {
-                        rhs = "[rbp - " + std::to_string(op_symbol->offset) + ']';
-                        // set the operand value as its location in the program
-                    }
-                    as.instruct(scope->name(), std::string("mov ") + ARG_REGISTER_SEQUENCE[f_sym->parameter_count - 1 - i] + ", " + rhs);
                 }
+                f_arg_map->erase(f_sym->m_name); // free up the room held by the vector
                 as.instruct(scope->name(), "call " + f_sym->m_name);
                 element = &*it;             // refresh these two values because
                 token = &(element->value);  // of iterator invalidation
                 element->value = "..";
             }
         }
-
-        for (int i = 0; i < stack_uses; i++)
-            retrieve_value("rax");
-        */
 
         return STATE_FOUND;
     }

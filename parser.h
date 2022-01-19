@@ -68,6 +68,8 @@ namespace asc
         evaluation_state eval_expression();
         evaluation_state eval_var_declaration(syntax_node*& lcurrent);
         evaluation_state eval_var_declaration();
+        void expression_instruct(std::string&& subroutine, std::string instruction,
+            std::map<std::string, std::vector<std::queue<std::string>>>& fam, function_symbol* func, int index);
         evaluation_state experimental_eval_expression(syntax_node*& lcurrent);
         evaluation_state experimental_eval_expression();
         evaluation_state experimental_eval_return_statement(syntax_node*& lcurrent);
