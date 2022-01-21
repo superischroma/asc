@@ -888,7 +888,6 @@ namespace asc
         std::deque<rpn_element> output;
         std::stack<expression_operator> operators;
 
-        syntax_node* previous_node = nullptr;
         std::stack<function_symbol*> functions;
         std::stack<int> call_indices;
 
@@ -952,7 +951,7 @@ namespace asc
             else if (lcurrent->next != nullptr && *(lcurrent->next) == "(")
             {
                 call_indices.push(0);
-                functions.push(static_cast<function_symbol*>(symbol_table_get(*(lcurrent->value))));
+                functions.push(dynamic_cast<function_symbol*>(symbol_table_get(*(lcurrent->value))));
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
             }
             else if (*(lcurrent) == "(")
@@ -1026,6 +1025,8 @@ namespace asc
             rpn_element* element = &*it;
             std::string* token = &(element->value);
             asc::debug(" ^ currently evaluating for: " + *token);
+            if (element->function)
+                asc::debug(" ^ evaluation function: " + element->function->m_name);
             symbol* sym = symbol_table_get(*token);
             if (OPERATORS.count(*token))
             {

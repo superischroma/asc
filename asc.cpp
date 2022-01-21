@@ -1,6 +1,4 @@
 #include <iostream>
-#include <fstream>
-#include <map>
 
 #include "cli.h"
 #include "logger.h"
