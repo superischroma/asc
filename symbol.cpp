@@ -44,6 +44,14 @@ namespace asc
         symbol(name, type, variant, vis, scope)
     {}
 
+    std::string symbol::location()
+    {
+        if (scope == nullptr)
+            return m_name;
+        else
+            return "[rbp - " + std::to_string(offset) + ']';
+    }
+
     std::string symbol::name()
     {
         if (this->split_b <= 0)

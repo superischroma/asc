@@ -890,6 +890,7 @@ namespace asc
 
         std::stack<function_symbol*> functions;
         std::stack<int> call_indices;
+        bool call_start = false;
 
         // shunting-yard algorithm: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
         for (syntax_node* previous_node = nullptr; *lcurrent != ";"; previous_node = lcurrent, lcurrent = lcurrent->next)
@@ -907,7 +908,7 @@ namespace asc
             if (is_numerical(value))
             {
                 output.push_back({ value, nullptr, !call_indices.empty() ? call_indices.top() : -1,
-                    !functions.empty() ? functions.top() : nullptr });
+                    !functions.empty() ? functions.top() : nullptr, call_start ? !(call_start = false) : call_start });
             }
             else if (OPERATORS.count(value))
             {
@@ -938,7 +939,8 @@ namespace asc
                 {
                     output.push_back({ operators.top().value, &oper,
                         !call_indices.empty() ? call_indices.top() : -1,
-                        !functions.empty() ? functions.top() : nullptr });
+                        !functions.empty() ? functions.top() : nullptr,
+                        call_start ? !(call_start = false) : call_start });
                     operators.pop();
                 }
 
@@ -953,6 +955,7 @@ namespace asc
                 call_indices.push(0);
                 functions.push(dynamic_cast<function_symbol*>(symbol_table_get(*(lcurrent->value))));
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
+                call_start = true;
             }
             else if (*(lcurrent) == "(")
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR });
@@ -968,7 +971,8 @@ namespace asc
                     if (operators.top().value == "(") break;
                     output.push_back({ operators.top().value, nullptr,
                         !call_indices.empty() ? call_indices.top() : -1,
-                        !functions.empty() ? functions.top() : nullptr });
+                        !functions.empty() ? functions.top() : nullptr,
+                        call_start ? !(call_start = false) : call_start });
                     operators.pop();
                 }
                 if (operators.empty() || operators.top().value != "(")
@@ -983,7 +987,8 @@ namespace asc
                     functions.pop();
                     output.push_back({ operators.top().value, nullptr,
                         !call_indices.empty() ? call_indices.top() : -1,
-                        !functions.empty() ? functions.top() : nullptr });
+                        !functions.empty() ? functions.top() : nullptr,
+                        call_start ? !(call_start = false) : call_start });
                     operators.pop();
                 }
             }
@@ -991,7 +996,8 @@ namespace asc
             {
                 output.push_back({ *(lcurrent->value), nullptr,
                     !call_indices.empty() ? call_indices.top() : -1,
-                    !functions.empty() ? functions.top() : nullptr });
+                    !functions.empty() ? functions.top() : nullptr,
+                    call_start ? !(call_start = false) : call_start });
             }
         }
 
@@ -1004,149 +1010,116 @@ namespace asc
             }
             output.push_back({ operators.top().value, nullptr,
                 !call_indices.empty() ? call_indices.top() : -1,
-                !functions.empty() ? functions.top() : nullptr });
+                !functions.empty() ? functions.top() : nullptr,
+                call_start ? !(call_start = false) : call_start });
             operators.pop();
         }
         
         lcurrent = lcurrent->next; // skip over the semicolon which denoted the end of the expression
         current = lcurrent; // sync up our local current with the object member
 
-        // christ almighty pt. 2
-        std::unique_ptr<std::map<std::string, std::vector<std::queue<std::string>>>> f_arg_map =
-            std::make_unique<std::map<std::string, std::vector<std::queue<std::string>>>>();
-        // this is mapping function names to arguments which are lists of instruction queues
+        {
+            std::string db = "shunting-yard:\n";
+            for (auto& it : output)
+                //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
+                db += it.value + ' ';
+            asc::debug(db);
+        }
 
-        int stack_uses = 0;
-
-        // iterate over the reverse polish notation form of the expression which was parsed
+        // reverse function call parameters
         for (auto it = output.begin(); it != output.end(); it++)
         {
-            asc::debug("expression evaluation state: " + stringify(output));
-            rpn_element* element = &*it;
-            std::string* token = &(element->value);
-            asc::debug(" ^ currently evaluating for: " + *token);
-            if (element->function)
-                asc::debug(" ^ evaluation function: " + element->function->m_name);
-            symbol* sym = symbol_table_get(*token);
-            if (OPERATORS.count(*token))
+            symbol* sym = symbol_table_get(it->value);
+            if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
             {
-                auto& oper = OPERATORS[*token];
-                std::array<rpn_element, 3> operands;
-                int append_index = -1;
-                if (it - oper.operands < output.begin())
+                auto call = it--;
+                auto* f_sym = dynamic_cast<function_symbol*>(sym);
+                std::deque<rpn_element> replacement;
+                for (int i = 0, last = f_sym->parameter_count - 1; i < f_sym->parameter_count; i++)
                 {
-                    asc::err("operator expected " + std::to_string(oper.operands) + " operand" + (oper.operands != 1 ? "s" : ""));
-                    return STATE_SYNTAX_ERROR;
-                }
-                for (int i = 0; i < oper.operands; i++)
-                {
-                    operands[i] = *(it - (oper.operands - i)); // extract operand
-                    asc::debug("extracted operand for operator " + *token + ": " + operands[i].value);
-                    it = output.erase(it - (oper.operands - i)) + (oper.operands - i - 1); // delete operand from deque
-                    asc::debug("iterator put back at " + it->value);
-                    if (operands[i].value == "..") // if it's the append indicator
+                    std::stack<rpn_element> storage;
+                    for (; it->parameter_index == last || it->function != f_sym; it--)
                     {
-                        append_index = i; // identify the index
-                        continue; // skip
-                    }
-                    symbol* op_symbol = symbol_table_get(operands[i].value);
-                    if (op_symbol == nullptr) // if the current operand isn't a symbol
-                    {
-                        if (!is_numerical(operands[i].value)) // if it's also not a numerical value
+                        storage.push(*it);
+                        if (it->call_start && it->function == f_sym)
                         {
-                            asc::err("symbol is not defined"); // throw an error
-                            return STATE_SYNTAX_ERROR;
+                            it--;
+                            break;
                         }
                     }
-                    else
-                    {
-                        operands[i] = { "[rbp - " + std::to_string(op_symbol->offset) + ']',
-                            operands[i].operator_data, operands[i].parameter_index };
-                        // set the operand value as its location in the program
-                    }
+                    last = it < output.begin() || it >= output.end() ? -1 : it->parameter_index;
+                    for (; !storage.empty(); storage.pop())
+                        replacement.push_back(storage.top());
                 }
-                element = &*it;             // refresh these two values because
-                token = &(element->value);  // of iterator invalidation
-                std::string destination = "";
-                if (element->parameter_index >= 0 && element->parameter_index <= 3)
-                    destination = ARG_REGISTER_SEQUENCE[element->parameter_index];
-                if (element->parameter_index > 3)
-                    destination = "stack"; // empty string indicating it should go to stack
-                asc::debug("destination set for " + *token + " operation: " + destination);
-                bool specific_destination = !destination.empty();
-                bool stack_destination = destination == "stack";
-                bool first = append_index == -1; // is this operation the first part of this expression?
-                if (oper.value == "+")
-                {
-                    if (first) // if it's first 
-                    {
-                        expression_instruct(scope->name(), "mov rax, " + operands[0].value,
-                            *f_arg_map, element->function, element->parameter_index); // move in the first operand
-                        expression_instruct(scope->name(), "add rax, " + operands[1].value,
-                            *f_arg_map, element->function, element->parameter_index); // add the second operand
-                    }
-                    else
-                    {
-                        expression_instruct(scope->name(), "add rax, " + operands[!append_index].value,
-                            *f_arg_map, element->function, element->parameter_index); // no special things because of communative property of addition
-                    }
-                }
-                else if (oper.value == "=")
-                {
-                    if (first)
-                    {
-                        expression_instruct(scope->name(), "mov rax, " + operands[1].value,
-                            *f_arg_map, element->function, element->parameter_index);
-                        expression_instruct(scope->name(), "mov " + operands[0].value + ", rax",
-                            *f_arg_map, element->function, element->parameter_index);
-                    }
-                    else
-                    {
-                        expression_instruct(scope->name(), "mov " + operands[!append_index].value + ", rax",
-                            *f_arg_map, element->function, element->parameter_index);
-                    }
-                }
-                else
-                {
-                    asc::err("unimplemented operator used");
-                    return STATE_SYNTAX_ERROR;
-                }
-                if (specific_destination)
-                {
-                    if (stack_destination)
-                    {
-                        expression_instruct(scope->name(), "push rax",
-                            *f_arg_map, element->function, element->parameter_index);
-                    }
-                    else
-                    {
-                        expression_instruct(scope->name(), std::string("mov ") +
-                            ARG_REGISTER_SEQUENCE[element->parameter_index] + ", rax", *f_arg_map,
-                            element->function, element->parameter_index);
-                    }
-                }
-                asc::debug("element value for " + *token + " has been set to expander");
-                element->value = "..";
-            }
-            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
-            {
-                function_symbol* f_sym = static_cast<function_symbol*>(sym);
-                auto& q = (*f_arg_map)[f_sym->m_name];
-                for (auto vit = q.end() - 1; vit >= q.begin(); vit--)
-                {
-                    for (; !(vit->empty()); vit->pop())
-                    {
-                        std::cout << "add: " << vit->front() << std::endl;
-                        as.instruct(scope->name(), vit->front());
-                    }
-                }
-                f_arg_map->erase(f_sym->m_name); // free up the room held by the vector
-                as.instruct(scope->name(), "call " + f_sym->m_name);
-                element = &*it;             // refresh these two values because
-                token = &(element->value);  // of iterator invalidation
-                element->value = "..";
+                it = output.erase(it + 1, call);
+                it = output.insert(it, replacement.begin(), replacement.end());
+                it += replacement.size();
             }
         }
+
+        {
+            std::string db = "shunting-yard + reverse function call:\n";
+            for (auto& it : output)
+                //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
+                db += it.value + ' ';
+            asc::debug(db);
+        }
+
+        for (auto it = output.begin(); it != output.end(); it++)
+        {
+            auto* element = &*it;
+            std::string* token = &(element->value);
+            symbol* sym = symbol_table_get(*token);
+            if (OPERATORS.count(*token)) // operator
+            {
+                auto& oper = OPERATORS[*token];
+                if (oper.value == "+")
+                {
+                    if (oper.operands == 2)
+                    {
+                        retrieve_value("rbx");
+                        retrieve_value("rax");
+                        as.instruct(scope->name(), "add rax, rbx");
+                        preserve_value("rax");
+                        (it = output.erase(it))--;
+                    }
+                }
+            }
+            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
+            {
+                auto* f_sym = dynamic_cast<function_symbol*>(sym);
+                for (int i = ((f_sym->parameter_count - 1) > 3 ? 3 : (f_sym->parameter_count - 1)); i >= 0; i--)
+                    retrieve_value(ARG_REGISTER_SEQUENCE[i]);
+                as.instruct(scope->name(), "call " + sym->m_name);
+                (it = output.erase(it))--;
+            }
+            else if (sym != nullptr) // variable
+            {
+                preserve_symbol(sym);
+                (it = output.erase(it))--;
+            }
+            else if (is_string_literal(*token)) // string literal
+            {
+                symbol* str = symbol_table_insert("__strlit" + std::to_string(slc),
+                    new symbol("__strlit" + std::to_string(slc), "char[]", symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                as << asc::data << str->m_name + " db " + *token + ", 0x00";
+                slc++;
+                preserve_symbol(str);
+                (it = output.erase(it))--;
+            }
+            else if (is_numerical(*token)) // numerical
+            {
+                as.instruct(scope->name(), "mov qword [rbp - " + std::to_string(reserve_data_space(8)) + "], " + *token); // temporary
+                (it = output.erase(it))--;
+            }
+            else
+            {
+                asc::err("invalid token encountered while parsing expression");
+                return STATE_SYNTAX_ERROR;
+            }
+        }
+
+        // asc -experimental -debug -symbolize tests/test.as
 
         return STATE_FOUND;
     }
@@ -1258,6 +1231,16 @@ namespace asc
         return position;
     }
 
+    int parser::preserve_symbol(symbol* sym, symbol* scope)
+    {
+        int register_size = 8;//asc::get_register_size(sym->type);
+        int position = (dpc += register_size);
+        if (dpc > dpm) dpm = dpc; // update max if needed
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov rax, " + sym->location());
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp - " + std::to_string(position) + "], rax");
+        return position;
+    }
+
     int parser::reserve_data_space(int size)
     {
         int position = (dpc += size);
@@ -1275,6 +1258,16 @@ namespace asc
     void parser::retrieve_value(std::string storage)
     {
         retrieve_value(dpc, storage);
+    }
+
+    std::string parser::top_location()
+    {
+        return "[rbp - " + std::to_string(dpc) + ']';
+    }
+
+    void parser::forget_top(int size)
+    {
+        dpc -= size;
     }
 
     bool parser::symbol_table_has(std::string name, symbol* scope)

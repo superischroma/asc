@@ -79,9 +79,12 @@ namespace asc
 
         // value management
         int preserve_value(std::string location, symbol* scope = nullptr);
+        int preserve_symbol(symbol* sym, symbol* scope = nullptr);
         int reserve_data_space(int size);
         void retrieve_value(int position, std::string storage);
         void retrieve_value(std::string storage);
+        std::string top_location();
+        void forget_top(int size);
 
         // symbol table methods
         bool symbol_table_has(std::string name, symbol* scope = nullptr);

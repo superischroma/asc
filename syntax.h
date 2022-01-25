@@ -46,6 +46,7 @@ namespace asc
         expression_operator* operator_data = nullptr;
         int parameter_index = -1;
         function_symbol* function;
+        bool call_start = false;
     } rpn_element;
 
     extern std::map<std::string, expression_operator> OPERATORS;
@@ -109,6 +110,8 @@ namespace asc
     bool is_numerical(std::string& test);
 
     bool is_primitive(std::string& test);
+
+    bool is_string_literal(std::string& test);
 
     int get_type_size(std::string& prim);
 

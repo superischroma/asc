@@ -42,6 +42,7 @@ namespace asc
         symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
         symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string name();
+        std::string location();
         virtual std::string to_string();
     };
 

@@ -265,6 +265,11 @@ namespace asc
         return i == test.length();
     }
 
+    bool is_string_literal(std::string& test)
+    {
+        return test.length() >= 2 && test[0] == '"' && test[test.length() - 1] == '"';
+    }
+
     bool is_primitive(std::string& test)
     {
         return test == "void" ||
