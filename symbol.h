@@ -38,6 +38,7 @@ namespace asc
         syntax_node* helper;
         int offset;
         int split_b;
+        std::string reg;
         
         symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
         symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope);

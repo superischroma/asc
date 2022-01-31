@@ -231,7 +231,7 @@ namespace asc
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
                 symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
             f_symbol->parameter_count++; // add parameter to count
-            a_symbol->offset = s += 8;
+            a_symbol->offset = -(s += 8);
             if (c <= 4)
                 as.instruct(f_symbol->name(), "mov " + get_word(at_size) + " [rbp - " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
             //asc::debug("defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
@@ -648,8 +648,8 @@ namespace asc
         }
         else if (lcurrent->type == asc::syntax_types::IDENTIFIER) // function declarations
         {
-            symbol_table_insert(*(lcurrent->value), new asc::symbol(*(lcurrent->value),
-                "int", symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope));
+            symbol_table_insert(*(lcurrent->value), new asc::function_symbol(*(lcurrent->value),
+                "int", symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope, -1));
             as.external(*(lcurrent->value));
         }
         else
@@ -1021,8 +1021,8 @@ namespace asc
         {
             std::string db = "shunting-yard:\n";
             for (auto& it : output)
-                //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
-                db += it.value + ' ';
+                db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
+                //db += it.value + ' ';
             asc::debug(db);
         }
 
@@ -1035,7 +1035,17 @@ namespace asc
                 auto call = it--;
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 std::deque<rpn_element> replacement;
-                for (int i = 0, last = f_sym->parameter_count - 1; i < f_sym->parameter_count; i++)
+                int parameter_count = it->function ? it->parameter_index + 1 : 0;
+                if (f_sym->parameter_count != -1 && f_sym->parameter_count != parameter_count)
+                {
+                    asc::err("function " + f_sym->m_name + " expected " +
+                        std::to_string(f_sym->parameter_count) + " parameter(s), got " +
+                        std::to_string(parameter_count));
+                    return STATE_SYNTAX_ERROR;
+                }
+                if (f_sym->parameter_count == -1) f_sym->parameter_count = parameter_count;
+                // find supposed parameter count for external functions
+                for (int i = 0, last = parameter_count - 1; i < parameter_count; i++)
                 {
                     std::stack<rpn_element> storage;
                     for (; it->parameter_index == last || it->function != f_sym; it--)
@@ -1088,9 +1098,11 @@ namespace asc
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
-                for (int i = ((f_sym->parameter_count - 1) > 3 ? 3 : (f_sym->parameter_count - 1)); i >= 0; i--)
+                for (int i = 0; i < (f_sym->parameter_count > 4 ? 4 : f_sym->parameter_count); i++)
                     retrieve_value(ARG_REGISTER_SEQUENCE[i]);
                 as.instruct(scope->name(), "call " + sym->m_name);
+                forget_top((f_sym->parameter_count > 4 ? f_sym->parameter_count - 4 : 0) * 8);
+                preserve_value("rax"); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
