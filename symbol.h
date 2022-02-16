@@ -23,6 +23,7 @@ namespace asc
         const symbol_variant STRUCTLIKE_TYPE = 0x07;
         const symbol_variant STRUCTLIKE_TYPE_MEMBER = 0x08;
         const symbol_variant OBJECT = 0x09;
+        const symbol_variant PRIMITIVE = 0x0A;
 
         std::string name(symbol_variant st);
     }
@@ -31,29 +32,42 @@ namespace asc
     {
     public:
         std::string m_name;
-        std::string type;
+        type_symbol* type;
         symbol_variant variant;
         visibility vis;
         symbol* scope;
         syntax_node* helper;
         int offset;
         int split_b;
+        int size;
         std::string reg;
         
-        symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
-        symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope);
+        symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope);
+        symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string name();
         std::string location();
         virtual std::string to_string();
     };
 
+    /*
+    typedef struct
+    {
+        symbol* sym;
+        std::string name;
+        unsigned char size;
+        std::deque<symbol*>* members;
+        symbol* parent;
+        //std::deque<symbol*>*
+    } type_properties;
+    */
+
     class type_symbol: public symbol
     {
     public:
-        std::vector<syntax_node*> members;
-        int b_size;
+        std::deque<type_symbol*> members;
 
-        type_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope);
+        type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope);
+        type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string to_string();
     };
 
@@ -62,7 +76,7 @@ namespace asc
     public:
         int parameter_count;
 
-        function_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
+        function_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
         std::string to_string();
     };
 

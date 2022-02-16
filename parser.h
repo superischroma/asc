@@ -33,47 +33,29 @@ namespace asc
 
         // utility
         bool parseable();
-        bool check_eof(syntax_node* node, bool silence = false);
+        static bool check_eof(syntax_node* node, bool silence = false);
 
         // eval methods
-        evaluation_state eval_type(syntax_node*& lcurrent);
-        evaluation_state eval_type();
-        evaluation_state eval_visibility(syntax_node*& lcurrent);
-        evaluation_state eval_visibility();
-        evaluation_state eval_numeric_literal(syntax_node*& lcurrent);
-        evaluation_state eval_numeric_literal();
-        evaluation_state eval_string_literal(syntax_node*& lcurrent);
-        evaluation_state eval_string_literal();
-        evaluation_state eval_exp_ending(syntax_node*& lcurrent);
-        evaluation_state eval_exp_ending();
-        evaluation_state eval_operator(syntax_node*& lcurrent);
-        evaluation_state eval_operator();
-        evaluation_state eval_function_decl(syntax_node*& lcurrent);
-        evaluation_state eval_function_decl();
-        evaluation_state eval_function_call(syntax_node*& lcurrent);
-        evaluation_state eval_function_call();
-        evaluation_state eval_ret(syntax_node*& lcurrent);
-        evaluation_state eval_ret();
-        evaluation_state eval_if(syntax_node*& lcurrent);
-        evaluation_state eval_if();
-        evaluation_state eval_while(syntax_node*& lcurrent);
-        evaluation_state eval_while();
+
+        // evaluate function headers
+        evaluation_state eval_function_header(syntax_node*& lcurrent);
+        evaluation_state eval_function_header();
+
+        // evaluate if statements
+        evaluation_state eval_if_statement(syntax_node*& lcurrent);
+        evaluation_state eval_if_statement();
+        evaluation_state eval_while_statement(syntax_node*& lcurrent);
+        evaluation_state eval_while_statement();
         evaluation_state eval_block_ending(syntax_node*& lcurrent);
         evaluation_state eval_block_ending();
-        evaluation_state eval_variable_decl_def(syntax_node*& lcurrent);
-        evaluation_state eval_variable_decl_def();
         evaluation_state eval_use(syntax_node*& lcurrent);
         evaluation_state eval_use();
-        evaluation_state eval_expression(syntax_node*& lcurrent, asc::symbol* application);
-        evaluation_state eval_expression();
         evaluation_state eval_var_declaration(syntax_node*& lcurrent);
         evaluation_state eval_var_declaration();
-        void expression_instruct(std::string&& subroutine, std::string instruction,
-            std::map<std::string, std::vector<std::queue<std::string>>>& fam, function_symbol* func, int index);
-        evaluation_state experimental_eval_expression(syntax_node*& lcurrent);
-        evaluation_state experimental_eval_expression();
-        evaluation_state experimental_eval_return_statement(syntax_node*& lcurrent);
-        evaluation_state experimental_eval_return_statement();
+        evaluation_state eval_expression(syntax_node*& lcurrent);
+        evaluation_state eval_expression();
+        evaluation_state eval_return_statement(syntax_node*& lcurrent);
+        evaluation_state eval_return_statement();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
 

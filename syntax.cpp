@@ -76,20 +76,6 @@ namespace asc
         { "::", { "::", 17, 2, LEFT_OPERATOR_ASSOCATION } }
     };
 
-    std::map<std::string, asc::syntax_node*> TYPES = {
-        { "void", nullptr },
-        { "byte", nullptr },
-        { "int", nullptr },
-        { "short", nullptr },
-        { "int", nullptr },
-        { "long", nullptr },
-        { "bool", nullptr },
-        { "char", nullptr },
-        { "float", nullptr },
-        { "double", nullptr },
-        { "type", nullptr }
-    };
-
     namespace syntax_types
     {
         std::string name(unsigned short type)
@@ -195,15 +181,6 @@ namespace asc
         "@"
     };
 
-    const char* OPERATORS_OLD[] = {
-        "=",
-        "+",
-        "-",
-        "*",
-        "/",
-        "%"
-    };
-
     unsigned char is_keyword(std::string& test)
     {
         std::string pattern = "\\b(void|byte|bool|char|short|int|long|float|double|signed|unsigned|return|public|private|protected|if|for|while|use|native|type|extends|object)\\b";
@@ -223,16 +200,6 @@ namespace asc
                 return strlen(PUNCTUATORS[i]);
         }
         return 0;
-    }
-
-    int get_operator(std::string& test)
-    {
-        for (int i = 0; i < sizeof(OPERATORS_OLD) / sizeof(OPERATORS_OLD[0]); i++)
-        {
-            if (OPERATORS_OLD[i] == test)
-                return i;
-        }
-        return -1;
     }
 
     char get_visibility_id(std::string& test)

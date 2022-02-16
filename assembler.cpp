@@ -116,7 +116,7 @@ namespace asc
         if (this->parent == nullptr)
         {
             asc::debug("preserved for " + name + ": " + std::to_string(preserved_data));
-            space = 40 /* shadow space */ + preserved_data;
+            space = 32 /* shadow space */ + preserved_data;
             space += (space % 16); // 16-byte alignment for calling convention
             asc::debug("space: " + std::to_string(space));
             str += "\n\tpush rbp\n\tmov rbp, rsp";
@@ -134,7 +134,7 @@ namespace asc
                     (this->children != nullptr && this->children->size() == 0))))
         {
             asc::debug("preserved for " + name + ": " + std::to_string(preserved_data));
-            space = 40 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
+            space = 32 /* shadow space */ + (parent != nullptr ? parent->preserved_data : preserved_data);
             space += (space % 16); // 16-byte alignment for calling convention
             if (this->parent != nullptr || space != 0)
                 str += "\n\tadd rsp, " + std::to_string(space);

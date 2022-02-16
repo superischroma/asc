@@ -26,7 +26,11 @@ namespace asc
         }
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope)
+    std::map<std::string, asc::type_symbol> STANDARD_TYPES = {
+        { "int", { "int", nullptr, symbol_variants::PRIMITIVE, visibilities::INVALID, nullptr } } 
+    };
+
+    symbol::symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
@@ -36,20 +40,20 @@ namespace asc
         this->helper = nullptr;
         this->offset = 0;
         this->split_b = 0;
+        this->size = 8;
         if (asc::has_option_set(asc::args, asc::cli_options::SYMBOLIZE))
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*&& scope):
-        symbol(name, type, variant, vis, scope)
-    {}
+    symbol::symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope):
+        symbol(name, type, variant, vis, scope) {}
 
     std::string symbol::location()
     {
         if (scope == nullptr)
             return m_name;
         else
-            return "[rbp - " + std::to_string(offset) + ']';
+            return "[rbp + " + std::to_string(offset) + ']';
     }
 
     std::string symbol::name()
@@ -62,26 +66,32 @@ namespace asc
 
     std::string symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
+        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
     }
 
-    type_symbol::type_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope):
+    type_symbol::type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope):
         symbol(name, type, variant, vis, scope)
     {
-        this->b_size = 0;
+        
+    }
+
+    type_symbol::type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope):
+        type_symbol(name, type, variant, vis, scope)
+    {
+        
     }
 
     std::string type_symbol::to_string()
     {
-        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
+        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
         for (int i = 0; i < members.size(); i++)
         {
             if (i != 0) s += ", ";
-            s += *(members[i]->value);
+            s += members[i]->m_name;
         }
         s += ']';
 
@@ -89,7 +99,7 @@ namespace asc
         return s;
     }
 
-    function_symbol::function_symbol(std::string name, std::string type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count):
+    function_symbol::function_symbol(std::string name, type_symbol*, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count):
         symbol(name, type, variant, vis, scope)
     {
         this->parameter_count = parameter_count;
@@ -97,7 +107,7 @@ namespace asc
 
     std::string function_symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + type + ", symbol_type=" +
+        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_type=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameter_count=" +
             std::to_string(parameter_count) + '}';

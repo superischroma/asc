@@ -10,6 +10,7 @@ int v(int f, int g, int h, int i, int j, int k)
 
 int main()
 {
+    int u = 5;
     t(2ull, 4ull, 6ull, 8ull, 10, 12);
     //printf("%d", t(5 + 6, (5 + 8) + 3, 6 + 3, 10 + 11, 100 + v(3 + 6, 10 + 20, 50 + 33, 100 + 68, 200 + 98, 6 + 3)));
 }

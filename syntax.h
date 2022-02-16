@@ -103,8 +103,6 @@ namespace asc
 
     unsigned char is_punctuator(std::string& test);
 
-    int get_operator(std::string& test);
-
     char get_visibility_id(std::string& test);
 
     bool is_numerical(std::string& test);
