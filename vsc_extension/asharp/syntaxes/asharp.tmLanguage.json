@@ -66,7 +66,7 @@
 				},
 				{
 					"name": "constant.language",
-					"match": "\\b(namespace|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|unsigned|signed|native|public|private|protected)\\b"
+					"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|unsigned|signed|native|public|private|protected)\\b"
 				}
 			]
 		},

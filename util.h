@@ -16,6 +16,8 @@ namespace asc
     std::string to_lowercase(std::string str);
     std::string to_uppercase(std::string str);
     std::string stringify(std::deque<asc::rpn_element>& dq);
+    std::string relative_dereference(std::string& relative_to, int offset);
+    std::string relative_dereference(std::string&& relative_to, int offset);
 }
 
 #endif

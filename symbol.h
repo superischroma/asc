@@ -24,84 +24,92 @@ namespace asc
         const symbol_variant STRUCTLIKE_TYPE_MEMBER = 0x08;
         const symbol_variant OBJECT = 0x09;
         const symbol_variant PRIMITIVE = 0x0A;
+        const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0B;
 
         std::string name(symbol_variant st);
     }
 
-    class symbol
+    class stackable_element
+    {
+    public:
+        bool dynamic;
+    protected:
+        stackable_element();
+    public:
+        virtual std::string to_string() = 0;
+        virtual int get_size() = 0;
+    };
+
+    class numeric_literal: public stackable_element
+    {
+    public:
+        int size;
+
+        numeric_literal(int size);
+        std::string to_string();
+        int get_size();
+    };
+
+    class storage_register: public stackable_element
+    {
+    public:
+        std::string m_name;
+        int size;
+
+        storage_register(std::string name, int size);
+        std::string to_string();
+        int get_size();
+        std::string word();
+        storage_register& byte_equivalent(int bs);
+    };
+
+    extern std::map<std::string, asc::storage_register> STANDARD_REGISTERS;
+
+    class symbol: public stackable_element
     {
     public:
         std::string m_name;
         type_symbol* type;
+        bool array;
         symbol_variant variant;
         visibility vis;
         symbol* scope;
         syntax_node* helper;
         int offset;
         int split_b;
-        int size;
-        std::string reg;
         
-        symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope);
-        symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope);
+        symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope);
+        symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string name();
         std::string location();
-        virtual std::string to_string();
+        std::string to_string();
+        int get_size();
     };
-
-    /*
-    typedef struct
-    {
-        symbol* sym;
-        std::string name;
-        unsigned char size;
-        std::deque<symbol*>* members;
-        symbol* parent;
-        //std::deque<symbol*>*
-    } type_properties;
-    */
 
     class type_symbol: public symbol
     {
     public:
-        std::deque<type_symbol*> members;
+        std::deque<symbol*> members;
+        int size;
 
-        type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope);
-        type_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*&& scope);
+        type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope);
+        type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope);
         std::string to_string();
+        std::string word();
+        int get_size();
     };
+
+    extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;
 
     class function_symbol: public symbol
     {
     public:
         int parameter_count;
 
-        function_symbol(std::string name, type_symbol* type, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
+        function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
         std::string to_string();
+        int get_size();
     };
-
-    /*
-    bool operator<(symbol& lhs, symbol& rhs)
-    {
-        if (lhs.m_name < rhs.m_name) return true;
-        if (lhs.m_name > rhs.m_name) return false;
-
-        return lhs.scope < rhs.scope;
-    }
-    */
-
-    /*
-    class expression_derivative
-    {
-    public:
-        syntax_node* left;
-        int oid;
-        int parenthesis;
-        syntax_node* right;
-
-        expression_derivative(syntax_node* left, int oid, int parenthesis, syntax_node* right);
-    }
-    */
 }
 
 #endif

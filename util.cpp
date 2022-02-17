@@ -100,4 +100,17 @@ namespace asc
         }
         return str;
     }
+
+    std::string relative_dereference(std::string& relative_to, int offset)
+    {
+        std::string result = '[' + relative_to + ' ';
+        result += (offset < 0 ? '-' : '+');
+        result += ' ' + std::to_string(std::abs(offset)) + ']';
+        return result;
+    }
+
+    std::string relative_dereference(std::string&& relative_to, int offset)
+    {
+        return relative_dereference(relative_to, offset);
+    }
 }

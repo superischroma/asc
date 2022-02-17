@@ -26,6 +26,9 @@ namespace asc
         this->slc = 0;
         this->dpc = 0;
         this->dpm = 0;
+        // add all standard types
+        for (auto& p : STANDARD_TYPES)
+            this->symbols[p.second.m_name].push_back(&(p.second));
     }
 
     bool parser::parseable()
@@ -64,9 +67,8 @@ namespace asc
                 return STATE_NEUTRAL;
         }
         int t_line = slcurrent->line;
-        evaluation_state t_state = is_type(*(slcurrent->value));
-        std::string& t = *(slcurrent->value);
-        int t_size = asc::get_type_size(t);
+        type_symbol* t = get_type(*(slcurrent->value));
+        evaluation_state t_state = t != nullptr;
         //asc::debug('t' << std::endl;
         // at this point, it could still be a variable definition/declaration, so let's continue
         slcurrent = slcurrent->next;
@@ -93,7 +95,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         }
         function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, t,
-            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, 0)));
+            false, symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, 0)));
         //asc::debug("defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -103,16 +105,15 @@ namespace asc
             if (*(lcurrent->value) == ")") // if there are no more arguments, leave the loop
                 break;
             int at_line = lcurrent->line;
-            evaluation_state at_state = is_type(*(lcurrent->value));
+            type_symbol* at = get_type(*(lcurrent->value));
+            evaluation_state at_state = at != nullptr;
             if (at_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
-            std::string& at = *(lcurrent->value);
             if (at_state == STATE_NEUTRAL) // if there was no type specifier, throw an error
             {
                 asc::err("type specifier expected for argument " + std::to_string(c), at_line);
                 return STATE_SYNTAX_ERROR;
             }
-            int at_size = asc::get_type_size(at);
             lcurrent = lcurrent->next; // second, the argument identifier
             if (check_eof(lcurrent))
                 return STATE_SYNTAX_ERROR;
@@ -124,11 +125,11 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
-                symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
+                false /* TODO: temporary until array addition */, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
             f_symbol->parameter_count++; // add parameter to count
             a_symbol->offset = s += 8;
             if (c <= 4)
-                as.instruct(f_symbol->name(), "mov " + get_word(at_size) + " [rbp + " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at_size));
+                as.instruct(f_symbol->name(), "mov " + at->word() + " [rbp + " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at->size));
             //asc::debug("defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -204,7 +205,7 @@ namespace asc
         asc::subroutine*& ifb = as.sr(ifbname, csr); // if block subroutine
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
         ifb->ending = "jmp " + aftername; // setting ending of if block to be the jump to the after block
-        this->scope = new asc::symbol(ifbname, "if", symbol_variants::IF_BLOCK,
+        this->scope = new asc::symbol(ifbname, get_type("void"), false, symbol_variants::IF_BLOCK,
             visibilities::LOCAL, this->scope); // move scope into if statement
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
@@ -257,7 +258,7 @@ namespace asc
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
         loopb->ending = ""; // no ending
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
-        this->scope = new asc::symbol(loopbname, "while", symbol_variants::WHILE_BLOCK,
+        this->scope = new asc::symbol(loopbname, get_type("void"), false, symbol_variants::WHILE_BLOCK,
             visibilities::LOCAL, this->scope); // move scope into while loop
         this->scope->helper = expression; // preserve location of expression to be evaluated later
         current = lcurrent; // bring current up to speed
@@ -353,7 +354,7 @@ namespace asc
         else if (lcurrent->type == asc::syntax_types::IDENTIFIER) // function declarations
         {
             symbol_table_insert(*(lcurrent->value), new asc::function_symbol(*(lcurrent->value),
-                "int", symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope, -1));
+                get_type("int"), false, symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope, -1));
             as.external(*(lcurrent->value));
         }
         else
@@ -396,9 +397,9 @@ namespace asc
             v = visibilities::PRIVATE;
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
-        if (!is_type(*(slcurrent->value)))
+        type_symbol* t = get_type(*(slcurrent->value));
+        if (t == nullptr)
             return STATE_NEUTRAL;
-        std::string t = *(slcurrent->value);
         if (check_eof(slcurrent = slcurrent->next, true))
             return STATE_NEUTRAL;
         syntax_node* i_node = slcurrent; // copy identifier syntax node
@@ -413,10 +414,10 @@ namespace asc
         if (*(slcurrent->value) != "=" && *(slcurrent->value) != ";") // this is NOT a variable declaration (most likely a function declaration)
             return STATE_NEUTRAL;
         lcurrent = i_node; // sync up local with identifier node
-        symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t,
+        symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t, false /* TODO: temporary until array addition */,
             (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, scope));
         if (scope != nullptr)
-            sym->offset = this->reserve_data_space(get_type_size(t));
+            sym->offset = this->reserve_data_space(t->size);
         return eval_expression(i_node);
     }
 
@@ -630,10 +631,10 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        retrieve_value("rbx");
-                        retrieve_value("rax");
-                        as.instruct(scope->name(), "add rax, rbx");
-                        preserve_value("rax");
+                        auto& first = retrieve_value(STANDARD_REGISTERS["rbx"]);
+                        auto& second = retrieve_value(STANDARD_REGISTERS["rax"]);
+                        as.instruct(scope->name(), "add " + second.m_name + ", " + first.m_name);
+                        preserve_value(second);
                         (it = output.erase(it))--;
                     }
                 }
@@ -642,16 +643,19 @@ namespace asc
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 for (int i = 0; i < (f_sym->parameter_count > 4 ? 4 : f_sym->parameter_count); i++)
-                    retrieve_value(ARG_REGISTER_SEQUENCE[i]);
-                for (int i = 0; i < (f_sym->parameter_count - 4); i++)
+                    retrieve_value(STANDARD_REGISTERS[ARG_REGISTER_SEQUENCE[i]]);
+                for (int i = 0, h = 0; i < (f_sym->parameter_count - 4); i++)
                 {
-                    as.instruct(scope->name(), "mov rax, " + top_location());
-                    forget_top(8); // TODO: BAD
+                    int top_size = stack_emulation.top()->get_size();
+                    auto& transfer = STANDARD_REGISTERS["rax"].byte_equivalent(top_size).m_name;
+                    as.instruct(scope->name(), "mov " + transfer + ", " + top_location());
+                    forget_top();
                     as.instruct(scope->name(), "mov [rsp + " +
-                        std::to_string((i * 8) + 32) + "], rax");
+                        std::to_string(i + h + 32) + "], " + transfer);
+                    h += top_size;
                 }
                 as.instruct(scope->name(), "call " + sym->m_name);
-                preserve_value("rax"); // preserve the return value
+                preserve_value(STANDARD_REGISTERS["rax"].byte_equivalent(f_sym->type->size)); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
@@ -662,7 +666,7 @@ namespace asc
             else if (is_string_literal(*token)) // string literal
             {
                 symbol* str = symbol_table_insert("__strlit" + std::to_string(slc),
-                    new symbol("__strlit" + std::to_string(slc), "char[]", symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                    new symbol("__strlit" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
                 as << asc::data << str->m_name + " db " + *token + ", 0x00";
                 slc++;
                 preserve_symbol(str);
@@ -670,7 +674,10 @@ namespace asc
             }
             else if (is_numerical(*token)) // numerical
             {
-                as.instruct(scope->name(), "mov qword [rbp + " + std::to_string(reserve_data_space(8)) + "], " + *token); // temporary
+                as.instruct(scope->name(), "mov dword [rbp + " + std::to_string(reserve_data_space(4)) + "], " + *token); // temporary
+                numeric_literal* nl = new numeric_literal(4);
+                nl->dynamic = true; 
+                stack_emulation.push(nl);
                 (it = output.erase(it))--;
             }
             else
@@ -739,13 +746,15 @@ namespace asc
         }
         if (check_eof(lcurrent = lcurrent->next)) // move past brace
             return STATE_SYNTAX_ERROR;
-        type_symbol* sym = new type_symbol(identifier, "type", symbol_variants::STRUCTLIKE_TYPE,
-            visibilities::value_of(asc::to_uppercase(v)), this->scope);
+        type_symbol* sym = new type_symbol(identifier, get_type("void"), false, symbol_variants::STRUCTLIKE_TYPE,
+            visibilities::value_of(asc::to_uppercase(v)), 0, this->scope);
         symbol_table_insert(identifier, sym);
+        int overall_size = 0; // keep track of type's size
         while (!check_eof(lcurrent) && *(lcurrent) != "}")
         {
             int t_line = lcurrent->line;
-            evaluation_state t_state = is_type(*(lcurrent->value));
+            type_symbol* t = get_type(*(lcurrent->value));
+            evaluation_state t_state = t != nullptr;
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
             if (t_state == STATE_NEUTRAL)
@@ -753,8 +762,6 @@ namespace asc
                 asc::err("type expected", t_line);
                 return STATE_SYNTAX_ERROR;
             }
-            std::string& t = *(lcurrent->value);
-            int t_size = asc::get_type_size(t);
             if (check_eof(lcurrent = lcurrent->next)) // move to identifier
                 return STATE_SYNTAX_ERROR;
             std::string identifier = *(lcurrent->value);
@@ -764,15 +771,18 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             syntax_node* identifier_node = lcurrent;
-            sym->members.push_back(identifier_node);
-            symbol_table_insert(identifier, new symbol(identifier, t, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
-                visibilities::PUBLIC, static_cast<symbol*>(sym)));
+            symbol* member_symbol = new symbol(identifier, t, false /* TODO: temporary until array addition */, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
+                visibilities::PUBLIC, static_cast<symbol*>(sym));
+            sym->members.push_back(member_symbol);
+            symbol_table_insert(identifier, member_symbol);
+            overall_size += t->size;
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
             if (lcurrent == nullptr)
                 return STATE_SYNTAX_ERROR;
             if (check_eof(lcurrent = lcurrent->next)) // skip semicolon
                 return STATE_SYNTAX_ERROR;
         }
+        sym->size = overall_size; // update type's size with the size of its members
         current = lcurrent = lcurrent->next;
         return STATE_FOUND;
     }
@@ -783,22 +793,23 @@ namespace asc
         return eval_type_construct(current);
     }
 
-    int parser::preserve_value(std::string location, symbol* scope)
+    int parser::preserve_value(storage_register& location, symbol* scope)
     {
-        int register_size = asc::get_register_size(location);
-        int position = (dpc += register_size);
+        int position = (dpc += location.size);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp + " + std::to_string(-position) + "], " + location);
+        stack_emulation.push(&location);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + location.m_name);
         return -position;
     }
 
     int parser::preserve_symbol(symbol* sym, symbol* scope)
     {
-        int register_size = 8;//asc::get_register_size(sym->type);
-        int position = (dpc += register_size);
+        int position = (dpc += sym->type->size);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov rax, " + sym->location());
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov [rbp + " + std::to_string(-position) + "], rax");
+        stack_emulation.push(sym);
+        storage_register& transfer_register = STANDARD_REGISTERS["rax"].byte_equivalent(sym->type->size);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + transfer_register.m_name);
         return -position;
     }
 
@@ -808,27 +819,31 @@ namespace asc
         if (dpc > dpm) dpm = dpc; // update max if needed
         return -position;
     }
-
-    void parser::retrieve_value(int position, std::string storage)
-    {
-        as.instruct(scope->name(), "mov " + storage + ", [rbp + " + std::to_string(-position) + ']');
-        dpc -= asc::get_register_size(storage);
-    }
-
     // off the top
-    void parser::retrieve_value(std::string storage)
+    storage_register& parser::retrieve_value(storage_register& storage)
     {
-        retrieve_value(dpc, storage);
+        stackable_element* element = stack_emulation.top();
+        storage_register& dest = storage.byte_equivalent(element->get_size());
+        as.instruct(scope->name(), "mov " + dest.m_name + ", " + asc::relative_dereference("rbp", -dpc));
+        dpc -= element->get_size();
+        if (element->dynamic)
+            delete element;
+        stack_emulation.pop();
+        return dest;
     }
 
     std::string parser::top_location()
     {
-        return "[rbp + " + std::to_string(-dpc) + ']';
+        return asc::relative_dereference("rbp", -dpc);
     }
 
-    void parser::forget_top(int size)
+    void parser::forget_top()
     {
-        dpc -= size;
+        stackable_element* element = stack_emulation.top();
+        dpc -= element->get_size();
+        if (element->dynamic)
+            delete element;
+        stack_emulation.pop();
     }
 
     bool parser::symbol_table_has(std::string name, symbol* scope)
@@ -851,7 +866,7 @@ namespace asc
      * 
      * @param name The symbol's name
      * @param scope The scope to search from
-     * @return symbol*& 
+     * @return symbol*
      */
     symbol* parser::symbol_table_get(std::string name, symbol* scope)
     {
@@ -934,14 +949,15 @@ namespace asc
             symbols.erase(s->m_name); // free some memory if we're not using the vector
     }
 
-    bool parser::is_type(std::string str)
+    type_symbol* parser::get_type(std::string str)
     {
-        if (primitives::from_display(str) != primitives::INVALID)
-            return true;
         symbol* sym = symbol_table_get(str);
         if (sym == nullptr)
-            return false;
-        return sym->variant == symbol_variants::STRUCTLIKE_TYPE || sym->variant == symbol_variants::OBJECT;
+            return nullptr;
+        return (sym->variant == symbol_variants::STRUCTLIKE_TYPE ||
+            sym->variant == symbol_variants::OBJECT ||
+            sym->variant == symbol_variants::PRIMITIVE ||
+            sym->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) ? dynamic_cast<type_symbol*>(sym) : nullptr;
     }
 
     parser::~parser()

@@ -365,3 +365,13 @@ public int clangIncTest()
 {
     testTwo(); # prints 20
 }
+
+######################################
+#       MATHEMATICAL FUNCTIONS       #
+######################################
+
+# This function must produce a result and have no side effects
+public mathematical int addition(int x, int y)
+{
+    return x + y;
+}

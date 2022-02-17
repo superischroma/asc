@@ -28,6 +28,7 @@ namespace asc
         int slc; // string literal counter
         int dpc; // data preservation counter (how much data do we need to preserve right now?)
         int dpm; // data preservation max (how many will we need at a time)
+        std::stack<stackable_element*> stack_emulation;
 
         parser(syntax_node* root);
 
@@ -60,13 +61,12 @@ namespace asc
         evaluation_state eval_type_construct();
 
         // value management
-        int preserve_value(std::string location, symbol* scope = nullptr);
+        int preserve_value(storage_register& location, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
         int reserve_data_space(int size);
-        void retrieve_value(int position, std::string storage);
-        void retrieve_value(std::string storage);
+        storage_register& retrieve_value(storage_register& storage);
         std::string top_location();
-        void forget_top(int size);
+        void forget_top();
 
         // symbol table methods
         bool symbol_table_has(std::string name, symbol* scope = nullptr);
@@ -76,7 +76,7 @@ namespace asc
         void symbol_table_delete(symbol* s);
 
         // type management
-        bool is_type(std::string str);
+        type_symbol* get_type(std::string str);
 
         // destructor
         ~parser();
