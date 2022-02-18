@@ -69,7 +69,7 @@ namespace asc
         int preserve_value(storage_register& location, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
         int reserve_data_space(int size);
-        storage_register& retrieve_value(storage_register& storage);
+        storage_register& retrieve_value(storage_register& storage, bool lea = false);
         std::string top_location();
         void forget_top();
 

@@ -83,6 +83,7 @@ namespace asc
         syntax_node* helper;
         int offset;
         int split_b;
+        bool name_identified;
         
         symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope);
         symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*&& scope);

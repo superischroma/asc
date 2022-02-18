@@ -435,7 +435,7 @@ namespace asc
         type_symbol* t;
         bool t_array;
         auto t_state = eval_full_type(slcurrent, t, t_array);
-        if (t_state >= STATE_NEUTRAL)
+        if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
             return t_state;
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
@@ -658,11 +658,6 @@ namespace asc
             asc::debug(db);
         }
 
-        std::cout << '[';
-        for (auto it = output.begin(); it != output.end(); it++)
-            std::cout << (it != output.begin() ? ", " : "") << it->value;
-        std::cout << ']' << std::endl;
-
         for (auto it = output.begin(); it != output.end(); it++)
         {
             auto* element = &*it;
@@ -686,8 +681,16 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        asc::err("assignment is currently unimplemented");
-                        return STATE_SYNTAX_ERROR;
+                        std::cout << '[';
+                        for (auto it = output.begin(); it != output.end(); it++)
+                            std::cout << (it != output.begin() ? ", " : "") << it->value;
+                        std::cout << ']' << std::endl;
+                        auto& src = retrieve_value(get_register("rax"));
+                        std::cout << stack_emulation.top()->to_string() << std::endl;
+                        forget_top();
+                        as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.top())->offset) + ", " + src.m_name);
+                        preserve_value(src);
+                        (it = output.erase(it))--;
                     }
                 }
             }
@@ -721,6 +724,7 @@ namespace asc
             {
                 symbol* str = symbol_table_insert("_strlit" + std::to_string(slc),
                     new symbol("_strlit" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                str->name_identified = true;
                 as << asc::data << str->m_name + " db " + *token + ", 0x00";
                 slc++;
                 preserve_symbol(str);
@@ -913,7 +917,6 @@ namespace asc
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push(sym);
         storage_register& transfer_register = get_register("rax").byte_equivalent(sym->get_size());
-        std::cout << "transfer: " << transfer_register.m_name << " (" << sym->get_size() << ')' << std::endl;
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + transfer_register.m_name);
         return -position;
@@ -926,16 +929,23 @@ namespace asc
         return -position;
     }
     // off the top
-    storage_register& parser::retrieve_value(storage_register& storage)
+    storage_register& parser::retrieve_value(storage_register& storage, bool lea)
     {
         stackable_element* element = stack_emulation.top();
-        storage_register& dest = storage.byte_equivalent(element->get_size());
-        as.instruct(scope->name(), "mov " + dest.m_name + ", " + asc::relative_dereference("rbp", -dpc));
+        symbol* sym = dynamic_cast<symbol*>(element);
+        storage_register& dest = storage.byte_equivalent(lea ? 8 : element->get_size());
+        int size = element->get_size();
+        storage_register& dest64 = dest.byte_equivalent(8);
+        if (dest.get_size() != 8)
+            as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
+        as.instruct(scope->name(), std::string(lea ? "lea" : "mov") + ' ' + dest.m_name + ", " +
+            ((sym != nullptr && sym->name_identified) ? sym->m_name :
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc)));
         dpc -= element->get_size();
         if (element->dynamic)
             delete element;
         stack_emulation.pop();
-        return dest;
+        return storage.byte_equivalent(size);
     }
 
     std::string parser::top_location()

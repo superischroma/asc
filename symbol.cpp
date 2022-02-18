@@ -227,6 +227,7 @@ namespace asc
         this->helper = nullptr;
         this->offset = 0;
         this->split_b = 0;
+        this->name_identified = false;
         if (asc::has_option_set(asc::args, asc::cli_options::SYMBOLIZE))
             asc::info(this->to_string());
     }
