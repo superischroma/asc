@@ -24,6 +24,8 @@ namespace asc
                 case OBJECT: return "OBJECT";
                 case PRIMITIVE: return "PRIMITIVE";
                 case FLOATING_POINT_PRIMITIVE: return "FLOATING_POINT_PRIMITIVE";
+                case INTEGRAL_PRIMITIVE: return "INTEGRAL_PRIMITIVE";
+                case UNSIGNED_INTEGRAL_PRIMITIVE: return "UNSIGNED_INTEGRAL_PRIMITIVE";
                 default: return "UNNAMED_SYMBOL_TYPE_" + std::to_string(st);
             }
         }
@@ -31,12 +33,16 @@ namespace asc
 
     std::map<std::string, asc::type_symbol> STANDARD_TYPES = {
         { "void", { "void", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 0, nullptr } },
-        { "byte", { "byte", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
+        { "byte", { "byte", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
+        { "ubyte", { "unsigned byte", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
         { "bool", { "bool", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
         { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 2, nullptr } },
-        { "short", { "short", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 2, nullptr } },
-        { "int", { "int", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 4, nullptr } },
-        { "long", { "long", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 8, nullptr } },
+        { "short", { "short", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
+        { "ushort", { "unsigned short", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
+        { "int", { "int", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
+        { "uint", { "unsigned int", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
+        { "long", { "long", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
+        { "ulong", { "unsigned long", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
         { "float", { "float", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
         { "double", { "double", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
     };
@@ -312,7 +318,7 @@ namespace asc
         {
             if (i != 0)
                 str += ", ";
-            str += parameters[i]->m_name;
+            str += parameters[i]->type->m_name + (parameters[i]->array ? "[]" : "") + ' ' + parameters[i]->m_name;
         }
         str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
         str += '}';

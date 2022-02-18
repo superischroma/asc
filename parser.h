@@ -39,7 +39,7 @@ namespace asc
         // eval methods
 
         // evaluate function headers
-        evaluation_state eval_function_header(syntax_node*& lcurrent);
+        evaluation_state eval_function_header(syntax_node*& lcurrent, function_symbol*& result, bool use_declaration);
         evaluation_state eval_function_header();
 
         // evaluate if statements
@@ -59,6 +59,11 @@ namespace asc
         evaluation_state eval_return_statement();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
+
+        // segments of evaluation
+
+        // evaluate full type
+        evaluation_state eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& array);
 
         // value management
         int preserve_value(storage_register& location, symbol* scope = nullptr);

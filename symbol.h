@@ -24,7 +24,9 @@ namespace asc
         const symbol_variant STRUCTLIKE_TYPE_MEMBER = 0x08;
         const symbol_variant OBJECT = 0x09;
         const symbol_variant PRIMITIVE = 0x0A;
-        const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0B;
+        const symbol_variant INTEGRAL_PRIMITIVE = 0x0B;
+        const symbol_variant UNSIGNED_INTEGRAL_PRIMITIVE = 0x0C;
+        const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0D;
 
         std::string name(symbol_variant st);
     }
