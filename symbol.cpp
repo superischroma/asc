@@ -108,6 +108,16 @@ namespace asc
         { "r15b", { "r15b", 1 } }
     };
 
+    storage_register& get_register(std::string& str)
+    {
+        return STANDARD_REGISTERS.at(str);
+    }
+
+    storage_register& get_register(std::string&& str)
+    {
+        return get_register(str);
+    }
+
     stackable_element::stackable_element()
     {
         this->dynamic = false;
@@ -159,24 +169,33 @@ namespace asc
     {
         if (size == bs)
             return *this;
-        if (m_name[0] == 'r')
-            return STANDARD_REGISTERS[m_name.substr(0, 3) + (size != 8 ? std::to_string(word()[0]) : "")];
+        if (m_name[0] == 'r' && m_name[1] >= '0' && m_name[1] <= '9')
+        {
+            char end = '\0';
+            if (bs == 1)
+                end = 'b';
+            else if (bs == 2)
+                end = 'w';
+            else if (bs == 4)
+                end = 'd';
+            return get_register(m_name.substr(0, m_name[1] == '1' ? 3 : 2) + (bs != 8 ? std::string() + end : ""));
+        }
         std::string result;
-        if (m_name.find("sp"))
+        if (m_name.find("sp") != std::string::npos)
             result = "sp";
-        else if (m_name.find("bp"))
+        else if (m_name.find("bp") != std::string::npos)
             result = "bp";
-        else if (m_name.find("di"))
+        else if (m_name.find("di") != std::string::npos)
             result = "di";
-        else if (m_name.find("si"))
+        else if (m_name.find("si") != std::string::npos)
             result = "si";
-        else if (m_name.find("d"))
+        else if (m_name.find("d") != std::string::npos)
             result = "d";
-        else if (m_name.find("c"))
+        else if (m_name.find("c") != std::string::npos)
             result = "c";
-        else if (m_name.find("b"))
+        else if (m_name.find("b") != std::string::npos)
             result = "b";
-        else if (m_name.find("a"))
+        else if (m_name.find("a") != std::string::npos)
             result = "a";
         if (bs == 1)
             result += 'l';
@@ -188,7 +207,7 @@ namespace asc
             if (result[1] >= 'a' && result[1] <= 'd')
                 result += 'x';
         }
-        return STANDARD_REGISTERS[result];
+        return get_register(result);
     }
 
     symbol::symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope)
@@ -234,7 +253,7 @@ namespace asc
 
     int symbol::get_size()
     {
-        return type->size;
+        return !array ? type->size : 8;
     }
 
     type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope):
@@ -245,6 +264,11 @@ namespace asc
 
     type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope):
         type_symbol(name, type, array, variant, vis, size, scope) {}
+    
+    int type_symbol::get_size()
+    {
+        return this->size;
+    }
 
     std::string type_symbol::to_string()
     {
@@ -273,17 +297,30 @@ namespace asc
         return "qword";
     }
 
-    function_symbol::function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count):
+    function_symbol::function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
         symbol(name, type, array, variant, vis, scope)
     {
-        this->parameter_count = parameter_count;
+        this->external_decl = external_decl;
     }
 
     std::string function_symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_type=" +
+        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_type=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
-            ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameter_count=" +
-            std::to_string(parameter_count) + '}';
+            ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameters=[";
+        for (int i = 0; i < parameters.size(); i++)
+        {
+            if (i != 0)
+                str += ", ";
+            str += parameters[i]->m_name;
+        }
+        str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
+        str += '}';
+        return str;
+    }
+
+    int function_symbol::get_size()
+    {
+        return !array ? type->size : 8;
     }
 }

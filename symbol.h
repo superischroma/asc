@@ -46,8 +46,8 @@ namespace asc
         int size;
 
         numeric_literal(int size);
-        std::string to_string();
-        int get_size();
+        std::string to_string() override;
+        int get_size() override;
     };
 
     class storage_register: public stackable_element
@@ -57,13 +57,17 @@ namespace asc
         int size;
 
         storage_register(std::string name, int size);
-        std::string to_string();
-        int get_size();
+        std::string to_string() override;
+        int get_size() override;
         std::string word();
         storage_register& byte_equivalent(int bs);
     };
 
     extern std::map<std::string, asc::storage_register> STANDARD_REGISTERS;
+    storage_register& get_register(std::string& str);
+    storage_register& get_register(std::string&& str);
+
+    class type_symbol; // forward declaration of type symbol
 
     class symbol: public stackable_element
     {
@@ -82,8 +86,8 @@ namespace asc
         symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*&& scope);
         std::string name();
         std::string location();
-        std::string to_string();
-        int get_size();
+        std::string to_string() override;
+        int get_size() override;
     };
 
     class type_symbol: public symbol
@@ -94,9 +98,9 @@ namespace asc
 
         type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope);
         type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope);
-        std::string to_string();
+        std::string to_string() override;
         std::string word();
-        int get_size();
+        int get_size() override;
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;
@@ -104,11 +108,12 @@ namespace asc
     class function_symbol: public symbol
     {
     public:
-        int parameter_count;
+        std::deque<symbol*> parameters;
+        bool external_decl;
 
-        function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, int parameter_count);
-        std::string to_string();
-        int get_size();
+        function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl);
+        std::string to_string() override;
+        int get_size() override;
     };
 }
 

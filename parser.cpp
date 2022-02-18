@@ -10,6 +10,8 @@
 
 namespace asc
 {
+    class storage_register;
+
     typedef struct
     {
         rpn_element* start;
@@ -95,7 +97,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         }
         function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, t,
-            false, symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, 0)));
+            false, symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, false)));
         //asc::debug("defined " << t << ' ' << identifier << " as a function" << std::endl;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -126,10 +128,13 @@ namespace asc
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
                 false /* TODO: temporary until array addition */, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
-            f_symbol->parameter_count++; // add parameter to count
+            f_symbol->parameters.push_back(a_symbol);
             a_symbol->offset = s += 8;
             if (c <= 4)
-                as.instruct(f_symbol->name(), "mov " + at->word() + " [rbp + " + std::to_string(a_symbol->offset) + "], " + asc::resolve_register(ARG_REGISTER_SEQUENCE[c - 1], at->size));
+            {
+                as.instruct(f_symbol->name(), "mov " + at->word() + " [rbp + " + std::to_string(a_symbol->offset) + "], " +
+                    asc::get_register(ARG_REGISTER_SEQUENCE[c - 1]).byte_equivalent(at->get_size()).m_name);
+            }
             //asc::debug("defined " << at << ' ' << a_identifier << " as a function argument for " << identifier << std::endl;
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -155,6 +160,7 @@ namespace asc
         lcurrent = lcurrent->next; // move into the function
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
+        asc::debug("function defined: " + f_symbol->to_string());
         current = lcurrent; // move member current to its proper location
         return STATE_FOUND; // finally, return the proper state
     }
@@ -354,7 +360,7 @@ namespace asc
         else if (lcurrent->type == asc::syntax_types::IDENTIFIER) // function declarations
         {
             symbol_table_insert(*(lcurrent->value), new asc::function_symbol(*(lcurrent->value),
-                get_type("int"), false, symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope, -1));
+                get_type("int"), false, symbol_variants::FUNCTION, visibilities::PUBLIC, this->scope, true));
             as.external(*(lcurrent->value));
         }
         else
@@ -417,7 +423,10 @@ namespace asc
         symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t, false /* TODO: temporary until array addition */,
             (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, scope));
         if (scope != nullptr)
-            sym->offset = this->reserve_data_space(t->size);
+        {
+            sym->offset = this->reserve_data_space(t->get_size());
+            stack_emulation.push(sym);
+        }
         return eval_expression(i_node);
     }
 
@@ -580,14 +589,13 @@ namespace asc
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 std::deque<rpn_element> replacement;
                 int parameter_count = it->function ? it->parameter_index + 1 : 0;
-                if (f_sym->parameter_count != -1 && f_sym->parameter_count != parameter_count)
+                if (!f_sym->external_decl && f_sym->parameters.size() != parameter_count)
                 {
                     asc::err("function " + f_sym->m_name + " expected " +
-                        std::to_string(f_sym->parameter_count) + " parameter(s), got " +
+                        std::to_string(f_sym->parameters.size()) + " parameter(s), got " +
                         std::to_string(parameter_count));
                     return STATE_SYNTAX_ERROR;
                 }
-                if (f_sym->parameter_count == -1) f_sym->parameter_count = parameter_count;
                 // find supposed parameter count for external functions
                 for (int i = 0, last = parameter_count - 1; i < parameter_count; i++)
                 {
@@ -631,8 +639,8 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        auto& first = retrieve_value(STANDARD_REGISTERS["rbx"]);
-                        auto& second = retrieve_value(STANDARD_REGISTERS["rax"]);
+                        auto& first = retrieve_value(get_register("rbx"));
+                        auto& second = retrieve_value(get_register("rax"));
                         as.instruct(scope->name(), "add " + second.m_name + ", " + first.m_name);
                         preserve_value(second);
                         (it = output.erase(it))--;
@@ -642,12 +650,13 @@ namespace asc
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
-                for (int i = 0; i < (f_sym->parameter_count > 4 ? 4 : f_sym->parameter_count); i++)
-                    retrieve_value(STANDARD_REGISTERS[ARG_REGISTER_SEQUENCE[i]]);
-                for (int i = 0, h = 0; i < (f_sym->parameter_count - 4); i++)
+                asc::debug("calling: " + f_sym->to_string());
+                for (int i = 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
+                    retrieve_value(get_register(ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()));
+                for (int i = 0, h = 0; i < (f_sym->parameters.size() - 4); i++)
                 {
                     int top_size = stack_emulation.top()->get_size();
-                    auto& transfer = STANDARD_REGISTERS["rax"].byte_equivalent(top_size).m_name;
+                    auto& transfer = get_register("rax").byte_equivalent(top_size).m_name;
                     as.instruct(scope->name(), "mov " + transfer + ", " + top_location());
                     forget_top();
                     as.instruct(scope->name(), "mov [rsp + " +
@@ -655,7 +664,7 @@ namespace asc
                     h += top_size;
                 }
                 as.instruct(scope->name(), "call " + sym->m_name);
-                preserve_value(STANDARD_REGISTERS["rax"].byte_equivalent(f_sym->type->size)); // preserve the return value
+                preserve_value(get_register("rax").byte_equivalent(f_sym->get_size())); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
@@ -665,8 +674,8 @@ namespace asc
             }
             else if (is_string_literal(*token)) // string literal
             {
-                symbol* str = symbol_table_insert("__strlit" + std::to_string(slc),
-                    new symbol("__strlit" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                symbol* str = symbol_table_insert("_strlit" + std::to_string(slc),
+                    new symbol("_strlit" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
                 as << asc::data << str->m_name + " db " + *token + ", 0x00";
                 slc++;
                 preserve_symbol(str);
@@ -674,7 +683,7 @@ namespace asc
             }
             else if (is_numerical(*token)) // numerical
             {
-                as.instruct(scope->name(), "mov dword [rbp + " + std::to_string(reserve_data_space(4)) + "], " + *token); // temporary
+                as.instruct(scope->name(), "mov dword " + asc::relative_dereference("rbp", reserve_data_space(4)) + ", " + *token); // temporary
                 numeric_literal* nl = new numeric_literal(4);
                 nl->dynamic = true; 
                 stack_emulation.push(nl);
@@ -775,7 +784,7 @@ namespace asc
                 visibilities::PUBLIC, static_cast<symbol*>(sym));
             sym->members.push_back(member_symbol);
             symbol_table_insert(identifier, member_symbol);
-            overall_size += t->size;
+            overall_size += t->get_size();
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
             if (lcurrent == nullptr)
                 return STATE_SYNTAX_ERROR;
@@ -804,10 +813,11 @@ namespace asc
 
     int parser::preserve_symbol(symbol* sym, symbol* scope)
     {
-        int position = (dpc += sym->type->size);
+        int position = (dpc += sym->get_size());
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push(sym);
-        storage_register& transfer_register = STANDARD_REGISTERS["rax"].byte_equivalent(sym->type->size);
+        storage_register& transfer_register = get_register("rax").byte_equivalent(sym->get_size());
+        std::cout << "transfer: " << transfer_register.m_name << " (" << sym->get_size() << ')' << std::endl;
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + transfer_register.m_name);
         return -position;
