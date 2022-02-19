@@ -50,6 +50,7 @@ namespace asc
     } rpn_element;
 
     extern std::map<std::string, expression_operator> OPERATORS;
+    extern std::deque<std::string> STANDARD_PUNCTUATORS;
 }
 
 #include "assembler.h"

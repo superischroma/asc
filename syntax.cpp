@@ -22,8 +22,8 @@ namespace asc
         { "*=", { "*=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "/=", { "/=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "%=", { "%=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
-        { "+=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
-        { "+=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "+=", { "+=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "-=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "=", { "=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
 
         // ternary operator
@@ -181,6 +181,58 @@ namespace asc
         "@"
     };
 
+    std::deque<std::string> STANDARD_PUNCTUATORS = {
+        "{",
+        "}",
+        "(",
+        ")",
+        ";",
+        ",",
+        "&=",
+        "^=",
+        "|=",
+        "<<=",
+        ">>=",
+        "*=",
+        "/=",
+        "%=",
+        "+=",
+        "-=",
+        "=",
+        "?",
+        ":",
+        "||",
+        "&&",
+        "==",
+        "!=",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "<=>",
+        "|",
+        "^",
+        "&",
+        "<<",
+        ">>",
+        "+",
+        "-",
+        "*",
+        "/",
+        "%",
+        "&",
+        "*",
+        "!",
+        "~",
+        "++",
+        "--",
+        ".",
+        "->",
+        "[",
+        "]",
+        "::"
+    };
+
     unsigned char is_keyword(std::string& test)
     {
         std::string pattern = "\\b(void|byte|bool|char|short|int|long|float|double|signed|unsigned|return|public|private|protected|if|for|while|use|native|type|extends|object)\\b";
@@ -192,12 +244,12 @@ namespace asc
 
     unsigned char is_punctuator(std::string& test)
     {
-        for (int i = 0; i < sizeof(PUNCTUATORS) / sizeof(PUNCTUATORS[0]); i++)
+        for (auto& punctuator : STANDARD_PUNCTUATORS)
         {
-            if (test.length() < strlen(PUNCTUATORS[i]))
+            if (test.length() < punctuator.length())
                 continue;
-            if (PUNCTUATORS[i] == test.substr(test.length() - strlen(PUNCTUATORS[i])))
-                return strlen(PUNCTUATORS[i]);
+            if (punctuator == test.substr(test.length() - punctuator.length()))
+                return punctuator.length();
         }
         return 0;
     }

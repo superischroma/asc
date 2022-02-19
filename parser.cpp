@@ -666,6 +666,7 @@ namespace asc
             if (OPERATORS.count(*token)) // operator
             {
                 auto& oper = OPERATORS[*token];
+                // addition operator
                 if (oper.value == "+")
                 {
                     if (oper.operands == 2)
@@ -677,6 +678,64 @@ namespace asc
                         (it = output.erase(it))--;
                     }
                 }
+                // subtraction operator
+                if (oper.value == "-")
+                {
+                    if (oper.operands == 2)
+                    {
+                        auto& first = retrieve_value(get_register("rbx"));
+                        auto& second = retrieve_value(get_register("rax"));
+                        as.instruct(scope->name(), "sub " + second.m_name + ", " + first.m_name);
+                        preserve_value(second);
+                        (it = output.erase(it))--;
+                    }
+                }
+                // multiplication and pointer operator
+                if (oper.value == "*")
+                {
+                    if (oper.operands == 2)
+                    {
+                        auto& first = retrieve_value(get_register("rbx"));
+                        auto& second = retrieve_value(get_register("rax"));
+                        as.instruct(scope->name(), "imul " + second.m_name + ", " + first.m_name);
+                        preserve_value(second);
+                        (it = output.erase(it))--;
+                    }
+                    if (oper.operands == 1)
+                    {
+                        asc::err("pointers have not been implemented yet");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                }
+                // division operator
+                if (oper.value == "/")
+                {
+                    if (oper.operands == 2)
+                    {
+                        auto& first = retrieve_value(get_register("rbx"));
+                        auto& second = retrieve_value(get_register("rax"));
+                        auto& d = get_register("rdx").byte_equivalent(second.get_size());
+                        as.instruct(scope->name(), "xor " + d.m_name + ", " + d.m_name);
+                        as.instruct(scope->name(), "idiv " + first.m_name);
+                        preserve_value(first.get_size() != 1 ? second : get_register("al"));
+                        (it = output.erase(it))--;
+                    }
+                }
+                // division operator
+                if (oper.value == "%")
+                {
+                    if (oper.operands == 2)
+                    {
+                        auto& first = retrieve_value(get_register("rbx"));
+                        auto& second = retrieve_value(get_register("rax"));
+                        auto& d = get_register("rdx").byte_equivalent(second.get_size());
+                        as.instruct(scope->name(), "xor " + d.m_name + ", " + d.m_name);
+                        as.instruct(scope->name(), "idiv " + first.m_name);
+                        preserve_value(first.get_size() != 1 ?  get_register("rdx").byte_equivalent(second.get_size()) : get_register("ah"));
+                        (it = output.erase(it))--;
+                    }
+                }
+                // assignment operator
                 if (oper.value == "=")
                 {
                     if (oper.operands == 2)
