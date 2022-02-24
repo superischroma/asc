@@ -158,7 +158,20 @@ namespace asc
                 continue;
             data += c;
         }
-        auto reg = std::regex(data);
+        std::smatch sm;
+        std::cout << TOKENIZER_REGEX_PATTERN << std::endl;
+        std::regex reg = std::regex(TOKENIZER_REGEX_PATTERN, std::regex::ECMAScript);
+        try
+        {
+            while (std::regex_search(data, sm, reg));
+        }
+        catch (std::regex_error& ex)
+        {
+            std::cerr << ex.code() << ' ' << ex.what() << std::endl;
+        }
+
+        for (auto& match : sm)
+            std::cout << match << std::endl;
         return nullptr;
     }
 }
