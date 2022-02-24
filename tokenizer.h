@@ -7,6 +7,8 @@
 
 namespace asc
 {
+    extern std::string TOKENIZER_REGEX_PATTERN;
+
     class syntax_node;
 
     class tokenizer
@@ -29,6 +31,8 @@ namespace asc
         std::string stringify_syntax();
         ~tokenizer();
     };
+
+    syntax_node* tokenize(std::ifstream& is);
 }
 
 #endif

@@ -4,6 +4,11 @@
 
 namespace asc
 {
+    // regex: (bool|int|float|use|\"[^\"\\\\]*(\\\\.[^\"\\\\]*)*\"|([-.0-9(u|f|D)]+)|&=|\^=|
+    // \|=|<<=|>>=|\*=|\/=|%=|\+=|-=|\|\||&&|==|!=|<<|>>|<=>|<=|>=|<|>|\||\^|&|!|~|\+\+|--|\+|->|
+    // -|\*|\/|%|\.|\[|\]|::|,|{|}|\(|\)|;|\?|:|=|[A-z]+)
+    std::string TOKENIZER_REGEX_PATTERN;
+
     const unsigned long long COMMENT = 1 << 0;
     const unsigned long long STRING_LITERAL = 1 << 1;
 
@@ -124,5 +129,36 @@ namespace asc
     tokenizer::~tokenizer()
     {
         delete syntax_head;
+    }
+
+    syntax_node* tokenize(std::ifstream& is)
+    {
+        syntax_node* head = new asc::syntax_node(nullptr, asc::syntax_types::PROGRAM_BEGIN, "A#", 0);
+        syntax_node* current = head;
+        std::string data;
+        for (char c = is.get(), comment = false, in_string = false; is.good(); c = is.get())
+        {
+            if (c == '#' && !in_string)
+                comment = true;
+            if (c == '\\')
+            {
+                char next = is.get();
+                (data += c) += next;
+                continue;
+            }
+            if (c == '"')
+                in_string = !in_string;
+            if (c == '\n')
+            {
+                comment = false;
+                data += c;
+                continue;
+            }
+            if (comment)
+                continue;
+            data += c;
+        }
+        auto reg = std::regex(data);
+        return nullptr;
     }
 }

@@ -121,73 +121,7 @@ namespace asc
         }
     }
 
-    namespace primitives
-    {
-        std::string name(unsigned short type)
-        {
-            switch (type)
-            {
-                case PRIMITIVE_VOID: return "PRIMITIVE_VOID";
-                case PRIMITIVE_BYTE: return "PRIMITIVE_BYTE";
-                case PRIMITIVE_SHORT: return "PRIMITIVE_SHORT";
-                case PRIMITIVE_INT: return "PRIMITIVE_INT";
-                case PRIMITIVE_LONG: return "PRIMITIVE_LONG";
-                case PRIMITIVE_BOOL: return "PRIMITIVE_BOOL";
-                case PRIMITIVE_CHAR: return "PRIMITIVE_CHAR";
-                case PRIMITIVE_FLOAT: return "PRIMITIVE_FLOAT";
-                case PRIMITIVE_DOUBLE: return "PRIMITIVE_DOUBLE";
-                default: return "UNNAMED_PRIMITIVE_" + std::to_string(type);
-            }
-        }
-
-        primitive from_display(std::string name)
-        {
-            if (name == "void")
-                return PRIMITIVE_VOID;
-            if (name == "byte")
-                return PRIMITIVE_BYTE;
-            if (name == "short")
-                return PRIMITIVE_SHORT;
-            if (name == "int")
-                return PRIMITIVE_INT;
-            if (name == "long")
-                return PRIMITIVE_LONG;
-            if (name == "bool")
-                return PRIMITIVE_BOOL;
-            if (name == "char")
-                return PRIMITIVE_CHAR;
-            if (name == "float")
-                return PRIMITIVE_FLOAT;
-            if (name == "double")
-                return PRIMITIVE_DOUBLE;
-            return INVALID;
-        }
-    }
-
-    const char* PUNCTUATORS[] = {
-        "{",
-        "}",
-        "(",
-        ")",
-        ";",
-        "=",
-        ",",
-        "+",
-        "-",
-        "*",
-        "/",
-        "[",
-        "]",
-        "@"
-    };
-
     std::deque<std::string> STANDARD_PUNCTUATORS = {
-        "{",
-        "}",
-        "(",
-        ")",
-        ";",
-        ",",
         "&=",
         "^=",
         "|=",
@@ -198,46 +132,76 @@ namespace asc
         "%=",
         "+=",
         "-=",
-        "=",
-        "?",
-        ":",
         "||",
         "&&",
         "==",
         "!=",
-        "<",
-        "<=",
-        ">",
-        ">=",
+        "<<",
+        ">>",
         "<=>",
+        "<=",
+        ">=",
+        "<",
+        ">",
         "|",
         "^",
         "&",
-        "<<",
-        ">>",
-        "+",
-        "-",
-        "*",
-        "/",
-        "%",
-        "&",
-        "*",
         "!",
         "~",
         "++",
         "--",
-        ".",
+        "+",
         "->",
+        "-",
+        "*",
+        "/",
+        "%",
+        ".",
         "[",
         "]",
-        "::"
+        "::",
+        ",",
+        "{",
+        "}",
+        "(",
+        ")",
+        ";",
+        "?",
+        ":",
+        "="
     };
+
+    std::vector<std::string> STANDARD_KEYWORDS = {
+        "void",
+        "byte",
+        "bool",
+        "char",
+        "short",
+        "int",
+        "long",
+        "float",
+        "double",
+        "signed",
+        "unsigned",
+        "return",
+        "public",
+        "private",
+        "protected",
+        "if",
+        "for",
+        "while",
+        "use",
+        "native",
+        "type",
+        "extends",
+        "object"
+    };
+    std::string KEYWORD_REGEX_PATTERN;
 
     unsigned char is_keyword(std::string& test)
     {
-        std::string pattern = "\\b(void|byte|bool|char|short|int|long|float|double|signed|unsigned|return|public|private|protected|if|for|while|use|native|type|extends|object)\\b";
         std::cmatch results;
-        if (std::regex_match(test.c_str(), results, std::regex(pattern), std::regex_constants::match_default))
+        if (std::regex_match(test.c_str(), results, std::regex(KEYWORD_REGEX_PATTERN), std::regex_constants::match_default))
             return results[0].str().length();
         return 0;
     }

@@ -16,6 +16,29 @@ namespace asc
 
 int main(int argc, char* argv[])
 {
+    // init keyword regex pattern
+    asc::KEYWORD_REGEX_PATTERN += "\\b(";
+    for (auto it = asc::STANDARD_KEYWORDS.cbegin(); it != asc::STANDARD_KEYWORDS.cend(); it++)
+        asc::KEYWORD_REGEX_PATTERN += (it != asc::STANDARD_KEYWORDS.cbegin() ? "|" : "") + *it;
+    asc::KEYWORD_REGEX_PATTERN += ")\\b";
+
+    // init tokenizer regex pattern
+    asc::TOKENIZER_REGEX_PATTERN += '(';
+    // keywords
+    for (auto it = asc::STANDARD_KEYWORDS.cbegin(); it != asc::STANDARD_KEYWORDS.cend(); it++)
+        asc::TOKENIZER_REGEX_PATTERN += (asc::TOKENIZER_REGEX_PATTERN.length() != 1 ? "|" : "") + *it;
+    asc::TOKENIZER_REGEX_PATTERN += (asc::TOKENIZER_REGEX_PATTERN.length() != 1 ? "|" : "") + 
+        std::string("\\\"[^\\\"\\\\\\\\]*(\\\\\\\\.[^\\\"\\\\\\\\]*)*\\\""); // string pattern
+    asc::TOKENIZER_REGEX_PATTERN += "|([-.0-9u|U|l|L|f|F|D]+)"; // number pattern
+    for (auto it = asc::STANDARD_PUNCTUATORS.cbegin(); it != asc::STANDARD_PUNCTUATORS.cend(); it++)
+    {
+        std::string punctuator = *it;
+        asc::TOKENIZER_REGEX_PATTERN += '|' + asc::escape_chars_regex(punctuator);
+    }
+    asc::TOKENIZER_REGEX_PATTERN += "|[0-z]+";
+    asc::TOKENIZER_REGEX_PATTERN += ')';
+    std::cout << asc::TOKENIZER_REGEX_PATTERN << std::endl;
+
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())
         asc::warn("no options file found, using default options");
@@ -191,11 +214,9 @@ namespace asc
             return -1;
         }
         std::ifstream is = std::ifstream(filepath);
-        asc::tokenizer tk = asc::tokenizer(is);
-        for (std::string token; tk.extractable();)
-            tk >> token;
+        asc::syntax_node* current = asc::tokenize(is);
         asc::info(filepath + " tokenized: ");
-        for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
+        for (; current != nullptr; current = current->next)
             std::cout << current->stringify() << std::endl;
         is.close();
         return 0;

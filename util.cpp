@@ -113,4 +113,22 @@ namespace asc
     {
         return relative_dereference(relative_to, offset);
     }
+
+    std::string escape_chars_regex(std::string& str)
+    {
+        std::string res;
+        for (char& c : str)
+        {
+            if (c == '^' || c == '|' || c == '*' || c == '/' || c == '+' || c == '.' || c == '[' || c == ']' ||
+                    c == '(' || c == ')' || c == '?')
+                res += '\\';
+            res += c;
+        }
+        return res;
+    }
+
+    std::string escape_chars_regex(std::string&& str)
+    {
+        return escape_chars_regex(str);
+    }
 }
