@@ -741,7 +741,15 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        auto& src = retrieve_value(get_register("rax"));
+                        bool fp = false;
+                        if (!stack_emulation.empty())
+                        {
+                            auto* t = stack_emulation.top();
+                            symbol* s = dynamic_cast<symbol*>(t);
+                            if (s != nullptr)
+                                fp = s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
+                        }
+                        auto& src = retrieve_value(get_register(fp ? "xmm0" : "rax"));
                         forget_top();
                         as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.top())->offset) + ", " + src.m_name);
                         preserve_value(src);
@@ -754,20 +762,21 @@ namespace asc
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling: " + f_sym->to_string());
                 for (int i = 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
-                    retrieve_value(get_register(ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()));
+                    retrieve_value(get_register(f_sym->parameters[i]->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+                        FP_ARG_REGISTER_SEQUENCE[i] : ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()));
                 int s_arg_count = f_sym->parameters.size() - 4;
                 for (int i = 0, h = 0; i < s_arg_count; i++)
                 {
                     int top_size = stack_emulation.top()->get_size();
-                    auto& transfer = get_register("rax").byte_equivalent(top_size).m_name;
-                    as.instruct(scope->name(), "mov " + transfer + ", " + top_location());
+                    auto& transfer = get_register("rax").byte_equivalent(top_size);
+                    as.instruct(scope->name(), "mov " + transfer.m_name + ", " + top_location());
                     forget_top();
                     as.instruct(scope->name(), "mov [rsp + " +
-                        std::to_string(i + h + 32) + "], " + transfer);
+                        std::to_string(i + h + 32) + "], " + transfer.m_name);
                     h += top_size;
                 }
                 as.instruct(scope->name(), "call " + f_sym->m_name);
-                preserve_value(get_register("rax").byte_equivalent(f_sym->get_size())); // preserve the return value
+                preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size())); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
@@ -800,7 +809,8 @@ namespace asc
                     new symbol("_FPL" + std::to_string(fplc), get_type(is_double ? "double" : "float"),
                         false, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
                 fpl->name_identified = true;
-                as << asc::data << fpl->m_name + " d" + (is_double ? "q " : "d ") + *token;
+                as << asc::data << fpl->m_name + " d" + (is_double ? "q " : "d ") + strip_number_literal(*token);
+                as.instruct(scope->name(), std::string("movs") + (is_double ? 'd' : 's') + " xmm0, " + fpl->type->word() + " [" + fpl->location() + ']');
                 fplc++;
                 preserve_symbol(fpl);
                 (it = output.erase(it))--;
@@ -974,7 +984,7 @@ namespace asc
         int position = (dpc += location.size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push(&location);
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + location.m_name);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
         return -position;
     }
 
@@ -985,7 +995,7 @@ namespace asc
         stack_emulation.push(sym);
         storage_register& transfer_register = get_register("rax").byte_equivalent(sym->get_size());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position) + ", " + transfer_register.m_name);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position, sym->word()) + ", " + transfer_register.m_name);
         return -position;
     }
 
@@ -1003,11 +1013,12 @@ namespace asc
         storage_register& dest = storage.byte_equivalent(lea ? 8 : element->get_size());
         int size = element->get_size();
         storage_register& dest64 = dest.byte_equivalent(8);
-        if (dest.get_size() != 8)
+        if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
-        as.instruct(scope->name(), std::string(lea ? "lea" : "mov") + ' ' + dest.m_name + ", " +
-            ((sym != nullptr && sym->name_identified) ? sym->m_name :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc)));
+        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + dest.instruction_suffix()) + ' ' + dest.m_name + ", " +
+            ((sym != nullptr && sym->name_identified) ? (sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+                sym->type->word() + " [" + sym->m_name + ']' : sym->m_name) :
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, element->word())));
         dpc -= element->get_size();
         if (element->dynamic)
             delete element;

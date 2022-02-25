@@ -1,4 +1,5 @@
 use double cos(double);
+use int printf(char[], double);
 
 int main()
 {

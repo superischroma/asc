@@ -13,6 +13,7 @@ namespace asc
     typedef std::string register_resolvable;
 
     extern const char* ARG_REGISTER_SEQUENCE[4];
+    extern const char* FP_ARG_REGISTER_SEQUENCE[4];
 
     register_resolvable resolve_register(register_resolvable& identifier, int size);
     register_resolvable resolve_register(register_resolvable&& identifier, int size);

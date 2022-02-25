@@ -62,11 +62,11 @@
 			"patterns": [
 				{
 					"name": "constant.numeric",
-					"match": "\\d+(\\.\\d+)?"
+					"match": "[-.0-9u|U|l|L|f|F|D]+"
 				},
 				{
 					"name": "constant.language",
-					"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|unsigned|signed|native|public|private|protected)\\b"
+					"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|float|double|unsigned|signed|native|public|private|protected)\\b"
 				}
 			]
 		},

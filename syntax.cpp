@@ -275,6 +275,18 @@ namespace asc
         return is_number_literal(test) && test.length() >= 1 && test[test.length() - 1] == 'D';
     }
 
+    std::string strip_number_literal(std::string& test)
+    {
+        std::string res;
+        for (char& c : test)
+        {
+            if (c == 'u' || c == 'U' || c == 'l' || c == 'L' || c == 'f' || c == 'F' || c == 'D')
+                continue;
+            res += c;
+        }
+        return res;
+    }
+
     bool is_primitive(std::string& test)
     {
         return test == "void" ||

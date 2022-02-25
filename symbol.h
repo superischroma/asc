@@ -40,6 +40,7 @@ namespace asc
     public:
         virtual std::string to_string() = 0;
         virtual int get_size() = 0;
+        std::string word();
     };
 
     class numeric_literal: public stackable_element
@@ -61,8 +62,9 @@ namespace asc
         storage_register(std::string name, int size);
         std::string to_string() override;
         int get_size() override;
-        std::string word();
         storage_register& byte_equivalent(int bs);
+        bool is_fp_register();
+        std::string instruction_suffix();
     };
 
     extern std::map<std::string, asc::storage_register> STANDARD_REGISTERS;
@@ -102,7 +104,6 @@ namespace asc
         type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope);
         type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope);
         std::string to_string() override;
-        std::string word();
         int get_size() override;
     };
 

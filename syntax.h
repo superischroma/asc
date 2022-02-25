@@ -103,6 +103,8 @@ namespace asc
 
     bool is_double_literal(std::string& test);
 
+    std::string strip_number_literal(std::string& test);
+
     int get_type_size(std::string& prim);
 
     int get_register_size(std::string& reg);

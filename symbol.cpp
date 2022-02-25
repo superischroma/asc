@@ -111,8 +111,37 @@ namespace asc
         { "r12b", { "r12b", 1 } },
         { "r13b", { "r13b", 1 } },
         { "r14b", { "r14b", 1 } },
-        { "r15b", { "r15b", 1 } }
+        { "r15b", { "r15b", 1 } },
+
+        // floating point registers
+        { "xmm0", { "xmm0", 16 } },
+        { "xmm1", { "xmm1", 16 } },
+        { "xmm2", { "xmm2", 16 } },
+        { "xmm3", { "xmm3", 16 } },
+        { "xmm4", { "xmm4", 16 } },
+        { "xmm5", { "xmm5", 16 } },
+        { "xmm6", { "xmm6", 16 } },
+        { "xmm7", { "xmm7", 16 } },
+        { "xmm8", { "xmm8", 16 } },
+        { "xmm9", { "xmm9", 16 } },
+        { "xmm10", { "xmm10", 16 } },
+        { "xmm11", { "xmm11", 16 } },
+        { "xmm12", { "xmm12", 16 } },
+        { "xmm13", { "xmm13", 16 } },
+        { "xmm14", { "xmm14", 16 } },
+        { "xmm15", { "xmm15", 16 } }
     };
+
+    std::string stackable_element::word()
+    {
+        if (get_size() == 1)
+            return "byte";
+        if (get_size() == 2)
+            return "word";
+        if (get_size() == 4)
+            return "dword";
+        return "qword";
+    }
 
     storage_register& get_register(std::string& str)
     {
@@ -160,20 +189,11 @@ namespace asc
         return "asc::storage_register{name=" + m_name + ", size=" + std::to_string(size) + '}';
     }
 
-    std::string storage_register::word()
-    {
-        if (size == 1)
-            return "byte";
-        if (size == 2)
-            return "word";
-        if (size == 4)
-            return "dword";
-        return "qword";
-    }
-
     storage_register& storage_register::byte_equivalent(int bs)
     {
         if (size == bs)
+            return *this;
+        if (m_name.find("xmm") != std::string::npos)
             return *this;
         if (m_name[0] == 'r' && m_name[1] >= '0' && m_name[1] <= '9')
         {
@@ -214,6 +234,16 @@ namespace asc
                 result += 'x';
         }
         return get_register(result);
+    }
+
+    bool storage_register::is_fp_register()
+    {
+        return m_name.find("xmm") != std::string::npos;
+    }
+
+    std::string storage_register::instruction_suffix()
+    {
+        return is_fp_register() ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
     symbol::symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope)
@@ -291,17 +321,6 @@ namespace asc
 
         s += '}';
         return s;
-    }
-
-    std::string type_symbol::word()
-    {
-        if (size == 1)
-            return "byte";
-        if (size == 2)
-            return "word";
-        if (size == 4)
-            return "dword";
-        return "qword";
     }
 
     function_symbol::function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):

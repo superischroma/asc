@@ -101,17 +101,18 @@ namespace asc
         return str;
     }
 
-    std::string relative_dereference(std::string& relative_to, int offset)
+    std::string relative_dereference(std::string& relative_to, int offset, std::string word)
     {
-        std::string result = '[' + relative_to + ' ';
+        std::string result = word.empty() ? "" : word + ' ';
+        result += '[' + relative_to + ' ';
         result += (offset < 0 ? '-' : '+');
-        result += ' ' + std::to_string(std::abs(offset)) + ']';
+        result += (' ' + std::to_string(std::abs(offset)) + ']');
         return result;
     }
 
-    std::string relative_dereference(std::string&& relative_to, int offset)
+    std::string relative_dereference(std::string&& relative_to, int offset, std::string word)
     {
-        return relative_dereference(relative_to, offset);
+        return relative_dereference(relative_to, offset, word);
     }
 
     std::string escape_chars_regex(std::string& str)

@@ -2,84 +2,14 @@
 #include "logger.h"
 
 namespace asc
-{
-    const char* REGISTER_TABLE[] = {
-        "rax", "eax", "ax", "al",
-        "rbx", "ebx", "bx", "bl", 
-        "rcx", "ecx", "cx", "cl", 
-        "rdx", "edx", "dx", "dl", 
-        "rsi", "esi", "si", "sil", 
-        "rdi", "edi", "di", "dil", 
-        "rbp", "ebp", "bp", "bpl", 
-        "rsp", "esp", "sp", "spl", 
-        "r8", "r8d", "r8w", "r8b", 
-        "r9", "r9d", "r9w", "r9b", 
-        "r10", "r10d", "r10w", "r10b", 
-        "r11", "r11d", "r11w", "r11b", 
-        "r12", "r12d", "r12w", "r12b", 
-        "r13", "r13d", "r13w", "r13b", 
-        "r14", "r14d", "r14w", "r14b", 
-        "r15", "r15d", "r15w", "r15b"
-    };
-    
+{   
     const char* ARG_REGISTER_SEQUENCE[] = {
         "rcx", "rdx", "r8", "r9"
     };
 
-    register_resolvable resolve_register(register_resolvable& identifier, int size)
-    {
-        if (identifier.find("[rbp") != std::string::npos) // it's not a register lol
-            return "-1";
-        int lindex = -1;
-        if (size == 1)
-            lindex = 3;
-        else if (size == 2)
-            lindex = 2;
-        else if (size == 4)
-            lindex = 1;
-        else if (size == 8)
-            lindex = 0;
-        else
-            return "-1";
-        if (identifier.find("r8") != std::string::npos)
-            return REGISTER_TABLE[32 + lindex];
-        if (identifier.find("r9") != std::string::npos)
-            return REGISTER_TABLE[36 + lindex];
-        if (identifier.find("r10") != std::string::npos)
-            return REGISTER_TABLE[40 + lindex];
-        if (identifier.find("r11") != std::string::npos)
-            return REGISTER_TABLE[44 + lindex];
-        if (identifier.find("r12") != std::string::npos)
-            return REGISTER_TABLE[48 + lindex];
-        if (identifier.find("r13") != std::string::npos)
-            return REGISTER_TABLE[52 + lindex];
-        if (identifier.find("r14") != std::string::npos)
-            return REGISTER_TABLE[56 + lindex];
-        if (identifier.find("r15") != std::string::npos)
-            return REGISTER_TABLE[60 + lindex];
-        if (identifier.find("si") != std::string::npos)
-            return REGISTER_TABLE[16 + lindex];
-        if (identifier.find("di") != std::string::npos)
-            return REGISTER_TABLE[20 + lindex];
-        if (identifier.find("bp") != std::string::npos)
-            return REGISTER_TABLE[24 + lindex];
-        if (identifier.find("sp") != std::string::npos)
-            return REGISTER_TABLE[28 + lindex];
-        if (identifier.find('a') != std::string::npos)
-            return REGISTER_TABLE[0 + lindex];
-        if (identifier.find('b') != std::string::npos)
-            return REGISTER_TABLE[4 + lindex];
-        if (identifier.find('c') != std::string::npos)
-            return REGISTER_TABLE[8 + lindex];
-        if (identifier.find('d') != std::string::npos)
-            return REGISTER_TABLE[12 + lindex];
-        return "-1";
-    }
-
-    register_resolvable resolve_register(register_resolvable&& identifier, int size)
-    {
-        return resolve_register(identifier, size);
-    }
+    const char* FP_ARG_REGISTER_SEQUENCE[] = {
+        "xmm0", "xmm1", "xmm2", "xmm3"
+    };
 
     subroutine::subroutine(std::string name, subroutine* parent)
     {
