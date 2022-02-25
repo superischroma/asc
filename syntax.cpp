@@ -253,6 +253,28 @@ namespace asc
         return test.length() >= 2 && test[0] == '"' && test[test.length() - 1] == '"';
     }
 
+    bool is_number_literal(std::string& test, bool integral)
+    {
+        for (char& c : test)
+        {
+            if ((c >= '0' && c <= '9') || (!integral && c == '.') || c == '-' || c == 'u' || c == 'U' ||
+                    c == 'l' || c == 'L' || c == 'f' || c == 'F' || c == 'D')
+                continue;
+            return false;
+        }
+        return true;
+    }
+
+    bool is_float_literal(std::string& test)
+    {
+        return is_number_literal(test) && test.length() >= 1 && test[test.length() - 1] == 'f';
+    }
+
+    bool is_double_literal(std::string& test)
+    {
+        return is_number_literal(test) && test.length() >= 1 && test[test.length() - 1] == 'D';
+    }
+
     bool is_primitive(std::string& test)
     {
         return test == "void" ||

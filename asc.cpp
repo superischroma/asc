@@ -35,9 +35,7 @@ int main(int argc, char* argv[])
         std::string punctuator = *it;
         asc::TOKENIZER_REGEX_PATTERN += '|' + asc::escape_chars_regex(punctuator);
     }
-    asc::TOKENIZER_REGEX_PATTERN += "|[0-z]+";
-    asc::TOKENIZER_REGEX_PATTERN += ')';
-    std::cout << asc::TOKENIZER_REGEX_PATTERN << std::endl;
+    asc::TOKENIZER_REGEX_PATTERN += "|[0-z]+)";
 
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())
@@ -120,12 +118,11 @@ namespace asc
             return -1;
         }
         std::ifstream is = std::ifstream(filepath);
-        asc::tokenizer tk = asc::tokenizer(is);
-        for (std::string token; tk.extractable();)
-            tk >> token;
-        for (asc::syntax_node* current = tk.syntax_start(); current != nullptr; current = current->next)
+        asc::syntax_node* current = asc::tokenize(is);
+        asc::syntax_node* head = current;
+        for (; current != nullptr; current = current->next)
             asc::debug(current->stringify());
-        asc::parser ps = asc::parser(tk.syntax_start());
+        asc::parser ps = asc::parser(head);
         while (ps.parseable())
         {
             asc::debug("token: " + *(ps.current->value));

@@ -97,6 +97,12 @@ namespace asc
 
     bool is_string_literal(std::string& test);
 
+    bool is_number_literal(std::string& test, bool integral = false);
+    
+    bool is_float_literal(std::string& test);
+
+    bool is_double_literal(std::string& test);
+
     int get_type_size(std::string& prim);
 
     int get_register_size(std::string& reg);

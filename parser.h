@@ -26,6 +26,7 @@ namespace asc
         symbol* scope; // scope of next tokens, null if global
         int branchc; // counter for branches
         int slc; // string literal counter
+        int fplc; // floating point literal counter
         int dpc; // data preservation counter (how much data do we need to preserve right now?)
         int dpm; // data preservation max (how many will we need at a time)
         std::stack<stackable_element*> stack_emulation;

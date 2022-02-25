@@ -26,6 +26,7 @@ namespace asc
         this->scope = nullptr;
         this->branchc = 0;
         this->slc = 0;
+        this->fplc = 0;
         this->dpc = 0;
         this->dpm = 0;
         // add all standard types
@@ -740,12 +741,7 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        std::cout << '[';
-                        for (auto it = output.begin(); it != output.end(); it++)
-                            std::cout << (it != output.begin() ? ", " : "") << it->value;
-                        std::cout << ']' << std::endl;
                         auto& src = retrieve_value(get_register("rax"));
-                        std::cout << stack_emulation.top()->to_string() << std::endl;
                         forget_top();
                         as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.top())->offset) + ", " + src.m_name);
                         preserve_value(src);
@@ -781,20 +777,32 @@ namespace asc
             }
             else if (is_string_literal(*token)) // string literal
             {
-                symbol* str = symbol_table_insert("_strlit" + std::to_string(slc),
-                    new symbol("_strlit" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                symbol* str = symbol_table_insert("_SL" + std::to_string(slc),
+                    new symbol("_SL" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
                 str->name_identified = true;
                 as << asc::data << str->m_name + " db " + *token + ", 0x00";
                 slc++;
                 preserve_symbol(str);
                 (it = output.erase(it))--;
             }
-            else if (is_numerical(*token)) // numerical
+            else if (is_number_literal(*token, true)) // integral constants
             {
                 as.instruct(scope->name(), "mov dword " + asc::relative_dereference("rbp", reserve_data_space(4)) + ", " + *token); // temporary
                 numeric_literal* nl = new numeric_literal(4);
                 nl->dynamic = true; 
                 stack_emulation.push(nl);
+                (it = output.erase(it))--;
+            }
+            else if (is_number_literal(*token)) // floating point constants
+            {
+                bool is_double = is_double_literal(*token);
+                symbol* fpl = symbol_table_insert("_FPL" + std::to_string(fplc),
+                    new symbol("_FPL" + std::to_string(fplc), get_type(is_double ? "double" : "float"),
+                        false, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                fpl->name_identified = true;
+                as << asc::data << fpl->m_name + " d" + (is_double ? "q " : "d ") + *token;
+                fplc++;
+                preserve_symbol(fpl);
                 (it = output.erase(it))--;
             }
             else
