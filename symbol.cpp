@@ -145,6 +145,7 @@ namespace asc
 
     storage_register& get_register(std::string& str)
     {
+        std::cout << str << std::endl;
         return STANDARD_REGISTERS.at(str);
     }
 
@@ -191,9 +192,9 @@ namespace asc
 
     storage_register& storage_register::byte_equivalent(int bs)
     {
-        if (size == bs)
+        if (is_fp_register() || bs == 16)
             return *this;
-        if (m_name.find("xmm") != std::string::npos)
+        if (size == bs)
             return *this;
         if (m_name[0] == 'r' && m_name[1] >= '0' && m_name[1] <= '9')
         {
@@ -233,7 +234,15 @@ namespace asc
             if (result[1] >= 'a' && result[1] <= 'd')
                 result += 'x';
         }
-        return get_register(result);
+        try
+        {
+            return get_register(result);
+        }
+        catch (std::out_of_range& ex)
+        {
+            std::cout << to_string() << ", " << bs << std::endl;
+            throw ex;
+        }
     }
 
     bool storage_register::is_fp_register()

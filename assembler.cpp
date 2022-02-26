@@ -3,11 +3,11 @@
 
 namespace asc
 {   
-    const char* ARG_REGISTER_SEQUENCE[] = {
+    std::vector<std::string> ARG_REGISTER_SEQUENCE = {
         "rcx", "rdx", "r8", "r9"
     };
 
-    const char* FP_ARG_REGISTER_SEQUENCE[] = {
+    std::vector<std::string> FP_ARG_REGISTER_SEQUENCE = {
         "xmm0", "xmm1", "xmm2", "xmm3"
     };
 

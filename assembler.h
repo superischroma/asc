@@ -7,13 +7,15 @@
 #include <set>
 #include <stdexcept>
 #include <queue>
+#include <deque>
+#include <array>
 
 namespace asc
 {
     typedef std::string register_resolvable;
 
-    extern const char* ARG_REGISTER_SEQUENCE[4];
-    extern const char* FP_ARG_REGISTER_SEQUENCE[4];
+    extern std::vector<std::string> ARG_REGISTER_SEQUENCE;
+    extern std::vector<std::string> FP_ARG_REGISTER_SEQUENCE;
 
     register_resolvable resolve_register(register_resolvable& identifier, int size);
     register_resolvable resolve_register(register_resolvable&& identifier, int size);

@@ -70,7 +70,7 @@ namespace asc
         int preserve_value(storage_register& location, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
         int reserve_data_space(int size);
-        storage_register& retrieve_value(storage_register& storage, bool lea = false);
+        storage_register& retrieve_value(storage_register& storage, bool lea = false, bool cc = false);
         std::string top_location();
         void forget_top();
 
@@ -80,6 +80,9 @@ namespace asc
         symbol* symbol_table_get_imm(std::string name, symbol* scope = nullptr);
         symbol* symbol_table_insert(std::string name, symbol* s);
         void symbol_table_delete(symbol* s);
+
+        // utility
+        symbol* get_current_function();
 
         // type management
         type_symbol* get_type(std::string str);

@@ -147,13 +147,15 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
-                false /* TODO: temporary until array addition */, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
+                at_array, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
             f_symbol->parameters.push_back(a_symbol);
             a_symbol->offset = s += 8;
             if (c <= 4 && !use_declaration)
             {
-                as.instruct(f_symbol->name(), "mov " + at->word() + " [rbp + " + std::to_string(a_symbol->offset) + "], " +
-                    asc::get_register(ARG_REGISTER_SEQUENCE[c - 1]).byte_equivalent(at->get_size()).m_name);
+                storage_register& stor = asc::get_register(at->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+                    FP_ARG_REGISTER_SEQUENCE[c - 1] : ARG_REGISTER_SEQUENCE[c - 1]).byte_equivalent(at->get_size());
+                as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + ' ' + at->word() + " [rbp + " +
+                    std::to_string(a_symbol->offset) + "], " + stor.m_name);
             }
             lcurrent = lcurrent->next; // lastly, what's next?
             if (check_eof(lcurrent))
@@ -749,7 +751,7 @@ namespace asc
                             if (s != nullptr)
                                 fp = s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
                         }
-                        auto& src = retrieve_value(get_register(fp ? "xmm0" : "rax"));
+                        auto& src = retrieve_value(get_register(fp ? "xmm4" : "rax"));
                         forget_top();
                         as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.top())->offset) + ", " + src.m_name);
                         preserve_value(src);
@@ -810,7 +812,7 @@ namespace asc
                         false, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
                 fpl->name_identified = true;
                 as << asc::data << fpl->m_name + " d" + (is_double ? "q " : "d ") + strip_number_literal(*token);
-                as.instruct(scope->name(), std::string("movs") + (is_double ? 'd' : 's') + " xmm0, " + fpl->type->word() + " [" + fpl->location() + ']');
+                as.instruct(scope->name(), std::string("movs") + (is_double ? 'd' : 's') + " xmm4, " + fpl->type->word() + " [" + fpl->location() + ']');
                 fplc++;
                 preserve_symbol(fpl);
                 (it = output.erase(it))--;
@@ -839,10 +841,15 @@ namespace asc
             return STATE_NEUTRAL;
         if (*lcurrent != "return")
             return STATE_NEUTRAL;
+        if (scope == nullptr)
+        {
+            asc::err("return statement outside of function", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
         auto exp = eval_expression(lcurrent = lcurrent->next);
         if (exp != STATE_FOUND)
             return exp;
-        retrieve_value(get_register("rax"));
+        retrieve_value(get_register(get_current_function()->type->variant != symbol_variants::FLOATING_POINT_PRIMITIVE ? "rax" : "xmm0"));
         return STATE_FOUND;
     }
 
@@ -984,7 +991,7 @@ namespace asc
         int position = (dpc += location.size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push(&location);
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" + location.instruction_suffix() + ' ' + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
         return -position;
     }
 
@@ -1006,7 +1013,7 @@ namespace asc
         return -position;
     }
     // off the top
-    storage_register& parser::retrieve_value(storage_register& storage, bool lea)
+    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc)
     {
         stackable_element* element = stack_emulation.top();
         symbol* sym = dynamic_cast<symbol*>(element);
@@ -1015,10 +1022,18 @@ namespace asc
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
-        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + dest.instruction_suffix()) + ' ' + dest.m_name + ", " +
-            ((sym != nullptr && sym->name_identified) ? (sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+        std::string src = ((sym != nullptr && sym->name_identified) ? (sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
                 sym->type->word() + " [" + sym->m_name + ']' : sym->m_name) :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, element->word())));
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, element->word()));
+        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + dest.instruction_suffix()) + ' ' + dest.m_name + ", " +
+            src);
+        auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
+        if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
+        {
+            as.instruct(scope->name(), std::string(lea ? "lea" : "mov") + ' ' +
+                ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)] +
+                ", " + src);
+        }
         dpc -= element->get_size();
         if (element->dynamic)
             delete element;
@@ -1141,6 +1156,13 @@ namespace asc
         vec.erase(std::remove(vec.begin(), vec.end(), s), vec.end());
         if (vec.empty())
             symbols.erase(s->m_name); // free some memory if we're not using the vector
+    }
+
+    symbol* parser::get_current_function()
+    {
+        symbol* current = this->scope;
+        for (; current != nullptr && current->variant != symbol_variants::FUNCTION; current = current->scope);
+        return current;
     }
 
     type_symbol* parser::get_type(std::string str)
