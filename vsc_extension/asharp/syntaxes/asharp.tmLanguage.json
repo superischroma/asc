@@ -37,14 +37,18 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.asharp",
-				"match": "(if|for|while|use|return|@print)\\b"
+				"match": "\\b(if|for|while|use|return)\\b"
+			},
+			{
+				"name": "constant.language.asharp",
+				"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|float|double|unsigned|signed|native|public|private|protected)\\b"
 			}]
 		},
 		"strings": {
 			"patterns": [
 				{
 					"name": "constant.character.escape.asharp",
-					"match": "\\\\."
+					"match": "\\\""
 				},
 				{
 					"name": "string.quoted.double.asharp",
@@ -61,24 +65,24 @@
 		"constants": {
 			"patterns": [
 				{
-					"name": "constant.numeric",
+					"name": "constant.numeric.asharp",
 					"match": "[-.0-9u|U|l|L|f|F|D]+"
-				},
-				{
-					"name": "constant.language",
-					"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|float|double|unsigned|signed|native|public|private|protected)\\b"
 				}
-			]
-		},
-		"variables": {
-			"patterns": [
 			]
 		},
 		"functions": {
 			"patterns": [
 				{
-					"name": "entity.name.function",
-					"match": "\\w+(?=\\s+\\()"
+					"name": "entity.name.function.asharp",
+					"match": "\\w+(?=\\()"
+				}
+			]
+		},
+		"variables": {
+			"patterns": [
+				{
+					"name": "variable.asharp",
+					"match": "([0-9]+|[A-z]+)"
 				}
 			]
 		}
