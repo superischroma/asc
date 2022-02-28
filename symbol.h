@@ -43,12 +43,12 @@ namespace asc
         std::string word();
     };
 
-    class numeric_literal: public stackable_element
+    class integral_literal: public stackable_element
     {
     public:
         int size;
 
-        numeric_literal(int size);
+        integral_literal(int size);
         std::string to_string() override;
         int get_size() override;
     };
@@ -92,6 +92,7 @@ namespace asc
         std::string name();
         std::string location();
         std::string to_string() override;
+        std::string instruction_suffix();
         int get_size() override;
     };
 

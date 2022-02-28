@@ -272,7 +272,8 @@ namespace asc
 
     bool is_double_literal(std::string& test)
     {
-        return is_number_literal(test) && test.length() >= 1 && test[test.length() - 1] == 'D';
+        return is_number_literal(test) && test.length() >= 1 && (test[test.length() - 1] == 'D' || 
+            ((test[test.length() - 1] == 'D' || (test[test.length() - 1] >= '0' && test[test.length() - 1] <= '9')) && test.find('.') != std::string::npos));
     }
 
     std::string strip_number_literal(std::string& test)

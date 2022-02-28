@@ -1,11 +1,11 @@
 #include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <time.h>
+
+int bruh(int a)
+{
+    return a;
+}
 
 int main()
 {
-    cos(0.0);
-    srand(time(0));
-    printf("%d", rand());
+    printf("%d", 10.8 % bruh(2));
 }

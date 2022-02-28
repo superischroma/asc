@@ -8,6 +8,7 @@ namespace asc
 
     syntax_node* tokenize(std::ifstream& is)
     {
+        asc::debug("tokenizing using the following regex pattern: " + TOKENIZER_REGEX_PATTERN);
         syntax_node* head = new asc::syntax_node(nullptr, asc::syntax_types::PROGRAM_BEGIN, "A#", 0);
         syntax_node* current = head;
         std::string data;

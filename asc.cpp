@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
         std::string punctuator = *it;
         asc::TOKENIZER_REGEX_PATTERN += '|' + asc::escape_chars_regex(punctuator);
     }
-    asc::TOKENIZER_REGEX_PATTERN += "|[0-z]+)";
+    asc::TOKENIZER_REGEX_PATTERN += "|[0-9]+|[A-z]+)";
 
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())

@@ -159,17 +159,17 @@ namespace asc
         this->dynamic = false;
     }
 
-    numeric_literal::numeric_literal(int size)
+    integral_literal::integral_literal(int size)
     {
         this->size = size;
     }
 
-    int numeric_literal::get_size()
+    int integral_literal::get_size()
     {
         return size;
     }
 
-    std::string numeric_literal::to_string()
+    std::string integral_literal::to_string()
     {
         return "asc::numeric_literal{size=" + std::to_string(size) + '}';
     }
@@ -300,6 +300,11 @@ namespace asc
     int symbol::get_size()
     {
         return !array ? type->size : 8;
+    }
+
+    std::string symbol::instruction_suffix()
+    {
+        return type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE && !array ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
     type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope):
