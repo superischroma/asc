@@ -793,31 +793,37 @@ namespace asc
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
                         symbol* sym = dynamic_cast<symbol*>(convertee);
                         storage_register* temp_dest;
+
                         if (il != nullptr)
                         {
                             // retrieve value with sign extension if necessary
-                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(dest_type->get_size()),
-                                false, false, dest_type->get_size() > il->get_size()));
-                            if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(dest_type->get_size()), // integral -> integral
+                                false, false, dest_type->get_size() > sym->get_size()));
+                            if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // integral -> float/double
                             {
                                 // being converted to floating point
-                                as.instruct(scope->name(), std::string("cvtts") + (is_double ? 'd' : 's')
-                                    + "2si xmm4, rax");
+                                temp_dest = &(get_register("xmm4"));
+                                as.instruct(scope->name(), std::string("cvtsi2s") + (is_double ? 'd' : 's')
+                                    + " xmm4, rax");
                             }
                         }
                         else if (sym != nullptr)
                         {
-                            if (sym->m_name.find("_FPL") != std::string::npos) // floating point literal
+                            if (sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // floating point variable or literal
                             {
-                                temp_dest = &(get_register("xmm4"));
-                                if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                                if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // float/double -> double/float
                                 {
+                                    temp_dest = &(get_register("xmm4"));
                                     retrieve_value(*temp_dest);
-                                    if (is_double)
-                                    {
-                                        as.instruct(scope->name(), "cvtss2sd " + temp_dest->m_name + ", " +
-                                            temp_dest->m_name);
-                                    }
+                                    as.instruct(scope->name(), "mov rax, " + sym->m_name);
+                                    as.instruct(scope->name(), std::string("cvtss2s") + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name +
+                                        ", " + temp_dest->word() + " [rax]");
+                                }
+                                else // float/double -> integral
+                                {
+                                    temp_dest = &(get_register("rax"));
+                                    retrieve_value(get_register("xmm4"));
+                                    as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax,");
                                 }
                             }
                         }
