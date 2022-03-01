@@ -9,6 +9,7 @@ namespace asc
         {"-tokenize", "Tokenizes the input file and displays it"},
         {"-symbolize", "Analyzes symbols created by asc and displays them"},
         {"-experimental", "Compile files using bleeding-edge code"},
+        {"-expressions", "Gives information about A# expressions in a file"},
         {"-o <location>", "Specifies an output location"}
     };
 
@@ -30,6 +31,8 @@ namespace asc
                 as.options |= cli_options::DEBUG;
             else if (arg == "-experimental")
                 as.options |= cli_options::EXPERIMENTAL;
+            else if (arg == "-expressions")
+                as.options |= cli_options::EXPRESSIONS;
             else if (arg == "-o")
             {
                 arg = std::string(argv[++i]);

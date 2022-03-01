@@ -88,6 +88,12 @@ int main(int argc, char* argv[])
         }
         return 0;
     }
+    if (asc::has_option_set(asc::args, asc::cli_options::EXPRESSIONS))
+    {
+        for (auto const& file : asc::args.files)
+            asc::analyze_expressions(file);
+        return 0;
+    }
     for (auto const& file : asc::args.files)
     {
         if (asc::compile(file) == -1)
@@ -216,6 +222,21 @@ namespace asc
         for (; current != nullptr; current = current->next)
             std::cout << current->stringify() << std::endl;
         is.close();
+        return 0;
+    }
+
+    int analyze_expressions(std::string filepath)
+    {
+        if (!asc::ends_with(filepath, ".as"))
+        {
+            asc::err(filepath + " is not A# source code");
+            return -1;
+        }
+        std::ifstream is = std::ifstream(filepath);
+        asc::syntax_node* current = asc::tokenize(is);
+        asc::parser ps = asc::parser(current);
+        while (ps.parseable())
+            ps.eval_expression();
         return 0;
     }
 }

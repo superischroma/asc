@@ -13,6 +13,7 @@ namespace asc
         const unsigned long long SYMBOLIZE = 1 << 2;
         const unsigned long long DEBUG = 1 << 3;
         const unsigned long long EXPERIMENTAL = 1 << 4;
+        const unsigned long long EXPRESSIONS = 1 << 5;
     }
 
     typedef struct arg_result

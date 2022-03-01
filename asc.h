@@ -9,6 +9,7 @@ namespace asc
 
     int compile(std::string filepath);
     int visually_tokenize(std::string filepath);
+    int analyze_expressions(std::string filepath);
 }
 
 #endif

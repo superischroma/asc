@@ -337,6 +337,16 @@ namespace asc
         return s;
     }
 
+    bool type_symbol::is_primitive()
+    {
+        auto l = [](){};
+        return std::find_if(STANDARD_TYPES.begin(), STANDARD_TYPES.end(),
+            [this](std::pair<std::string, asc::symbol>& pair) -> bool
+            {
+                return this->m_name == pair.second.m_name;
+            }) != STANDARD_TYPES.end();
+    }
+
     function_symbol::function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
         symbol(name, type, array, variant, vis, scope)
     {

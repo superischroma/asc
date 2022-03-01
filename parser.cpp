@@ -771,6 +771,64 @@ namespace asc
                         (it = output.erase(it))--;
                     }
                 }
+                // casting operator
+                if (oper.value == "=>")
+                {
+                    if (oper.operands == 2)
+                    {
+                        type_symbol* dest_type = dynamic_cast<type_symbol*>(stack_emulation.back());
+                        if (dest_type == nullptr)
+                        {
+                            asc::err("expected a type on right hand side of casting operator");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        if (!dest_type->is_primitive())
+                        {
+                            asc::err("casting to object types is not allowed yet");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        stack_emulation.pop_back();
+                        bool is_double = dest_type->m_name == "double";
+                        stackable_element* convertee = stack_emulation.back();
+                        integral_literal* il = dynamic_cast<integral_literal*>(convertee);
+                        symbol* sym = dynamic_cast<symbol*>(convertee);
+                        storage_register* temp_dest;
+                        if (il != nullptr)
+                        {
+                            // retrieve value with sign extension if necessary
+                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(dest_type->get_size()),
+                                false, false, dest_type->get_size() > il->get_size()));
+                            if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                            {
+                                // being converted to floating point
+                                as.instruct(scope->name(), std::string("cvtts") + (is_double ? 'd' : 's')
+                                    + "2si xmm4, rax");
+                            }
+                        }
+                        else if (sym != nullptr)
+                        {
+                            if (sym->m_name.find("_FPL") != std::string::npos) // floating point literal
+                            {
+                                temp_dest = &(get_register("xmm4"));
+                                if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                                {
+                                    retrieve_value(*temp_dest);
+                                    if (is_double)
+                                    {
+                                        as.instruct(scope->name(), "cvtss2sd " + temp_dest->m_name + ", " +
+                                            temp_dest->m_name);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            asc::err("left hand side of cast is not a candidate for casting");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        preserve_value(*temp_dest);
+                    }
+                }
             }
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
             {
@@ -1027,11 +1085,11 @@ namespace asc
         return -position;
     }
     // off the top
-    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc)
+    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx)
     {
         stackable_element* element = stack_emulation.back();
         symbol* sym = dynamic_cast<symbol*>(element);
-        storage_register& dest = storage.byte_equivalent(lea ? 8 : element->get_size());
+        storage_register& dest = sx ? storage : storage.byte_equivalent(lea ? 8 : element->get_size());
         int size = element->get_size();
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
@@ -1041,8 +1099,8 @@ namespace asc
         bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
-        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + dest.instruction_suffix()) + ' ' + dest.m_name + ", " +
-            (dereference_needed ? element->word() + " [rax]" : src));
+        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + (sx ? "sx" : dest.instruction_suffix())) +
+            ' ' + dest.m_name + ", " + (dereference_needed ? element->word() + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {

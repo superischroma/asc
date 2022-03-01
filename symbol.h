@@ -106,6 +106,7 @@ namespace asc
         type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope);
         std::string to_string() override;
         int get_size() override;
+        bool is_primitive();
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;
