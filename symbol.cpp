@@ -339,11 +339,11 @@ namespace asc
 
     bool type_symbol::is_primitive()
     {
-        auto l = [](){};
+        std::string n = m_name;
         return std::find_if(STANDARD_TYPES.begin(), STANDARD_TYPES.end(),
-            [this](std::pair<std::string, asc::symbol>& pair) -> bool
+            [n](std::pair<std::string, asc::symbol> pair) -> bool
             {
-                return this->m_name == pair.second.m_name;
+                return n == pair.second.m_name;
             }) != STANDARD_TYPES.end();
     }
 

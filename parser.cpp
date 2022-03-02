@@ -789,6 +789,7 @@ namespace asc
                         }
                         stack_emulation.pop_back();
                         bool is_double = dest_type->m_name == "double";
+                        bool fp_dest = dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
                         stackable_element* convertee = stack_emulation.back();
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
                         symbol* sym = dynamic_cast<symbol*>(convertee);
@@ -797,9 +798,9 @@ namespace asc
                         if (il != nullptr)
                         {
                             // retrieve value with sign extension if necessary
-                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(dest_type->get_size()), // integral -> integral
-                                false, false, dest_type->get_size() > sym->get_size()));
-                            if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // integral -> float/double
+                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
+                                false, false, fp_dest ? true : dest_type->get_size() > sym->get_size()));
+                            if (fp_dest) // integral -> float/double
                             {
                                 // being converted to floating point
                                 temp_dest = &(get_register("xmm4"));
@@ -823,7 +824,7 @@ namespace asc
                                 {
                                     temp_dest = &(get_register("rax"));
                                     retrieve_value(get_register("xmm4"));
-                                    as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax,");
+                                    as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax, xmm4");
                                 }
                             }
                         }
