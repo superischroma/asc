@@ -792,16 +792,17 @@ namespace asc
                         bool fp_dest = dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
                         stackable_element* convertee = stack_emulation.back();
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
+                        storage_register* reg = dynamic_cast<storage_register*>(convertee);
                         symbol* sym = dynamic_cast<symbol*>(convertee);
-                        storage_register* temp_dest;
+                        storage_register* temp_dest = nullptr;
 
-                        asc::debug("casting candidate: " + convertee->to_string());
+                        asc::debug("casting candidate: " + convertee->to_string() + ", to: " + dest_type->to_string());
 
-                        if (il != nullptr || (sym != nullptr && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE))
+                        if (il != nullptr || (sym != nullptr && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE) || (reg != nullptr && !reg->is_fp_register()))
                         {
                             // retrieve value with sign extension if necessary
                             temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
-                                false, false, fp_dest ? true : dest_type->get_size() > (il ? il->get_size() : sym->get_size())));
+                                false, false, fp_dest ? true : dest_type->get_size() > (il ? il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
                             std::cout << "temp_dest: " << temp_dest->to_string() << std::endl;
                             if (fp_dest) // integral -> float/double
                             {
@@ -1102,36 +1103,46 @@ namespace asc
         if (dpc > dpm) dpm = dpc; // update max if needed
         return -position;
     }
-    // off the top
-    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx)
+
+    /**
+     * @brief Takes a value off of the stack in emulation and output and stores it in the storage argument
+     * 
+     * @param storage The location to store the value in output
+     * @param lea Whether the memory address should be stored rather than the value
+     * @param cc Whether this function call might need to follow x64 calling convention rules
+     * @param sx Whether the value should be sign extended once it is retrieved
+     * @param use_passed_storage Whether it should not check for a proper storage register extension and use the one provided by the callee
+     * @return storage_register& The actual register it was stored in if the function chose an larger or smaller extension register
+     */
+    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx, bool use_passed_storage)
     {
         stackable_element* element = stack_emulation.back();
         symbol* sym = dynamic_cast<symbol*>(element);
-        storage_register& dest = sx ? storage : storage.byte_equivalent(lea ? 8 : element->get_size());
+        storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lea ? 8 : element->get_size());
         int size = element->get_size();
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
         std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, element->word());
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, dest.word());
         bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
         as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + (sx ? "sx" :
             (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : dest.instruction_suffix()))) +
-            ' ' + dest.m_name + ", " + (dereference_needed ? element->word() + " [rax]" : src));
+            ' ' + dest.m_name + ", " + (dereference_needed ? dest.word() + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {
             as.instruct(scope->name(), std::string(lea ? "lea" : "mov") + ' ' +
                 ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)] +
-                ", " + (dereference_needed ? element->word() + " [rax]" : src));
+                ", " + (dereference_needed ? dest.word() + " [rax]" : src));
         }
         dpc -= element->get_size();
         if (element->dynamic)
             delete element;
         stack_emulation.pop_back();
-        return sx ? dest : storage.byte_equivalent(size);
+        return sx || use_passed_storage ? dest : storage.byte_equivalent(size);
     }
 
     std::string parser::top_location()
