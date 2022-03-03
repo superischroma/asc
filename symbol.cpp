@@ -304,7 +304,17 @@ namespace asc
 
     std::string symbol::instruction_suffix()
     {
-        return type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE && !array ? (get_size() == 4 ? "ss" : "sd") : "";
+        return is_floating_point() && !array ? (get_size() == 4 ? "ss" : "sd") : "";
+    }
+
+    bool symbol::is_floating_point()
+    {
+        return this->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
+    }
+
+    bool symbol::operator==(symbol& rhs)
+    {
+        return this->m_name == rhs.m_name;
     }
 
     type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope):

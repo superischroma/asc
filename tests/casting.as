@@ -1,12 +1,6 @@
-use int printf(char[], int);
-
-void show(int a)
-{
-    printf("%d", a);
-}
+use int printf(char[], double);
 
 int main()
 {
-    double v = 5.5;
-    show(v => int);
+    printf("%d", 5 => byte);
 }

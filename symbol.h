@@ -93,6 +93,8 @@ namespace asc
         std::string location();
         std::string to_string() override;
         std::string instruction_suffix();
+        bool is_floating_point();
+        bool operator==(symbol& rhs);
         int get_size() override;
     };
 

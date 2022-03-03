@@ -756,17 +756,17 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        bool fp = false;
+                        symbol* fps = nullptr;
                         if (!stack_emulation.empty())
                         {
                             auto* t = stack_emulation.back();
                             symbol* s = dynamic_cast<symbol*>(t);
-                            if (s != nullptr)
-                                fp = s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
+                            if (s != nullptr && s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                                fps = s;
                         }
-                        auto& src = retrieve_value(get_register(fp ? "xmm4" : "rax"));
+                        auto& src = retrieve_value(get_register(fps ? "xmm4" : "rax"));
                         forget_top();
-                        as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
+                        as.instruct(scope->name(), "mov" + (fps != nullptr ? fps->instruction_suffix() : "") + ' ' + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
                         preserve_value(src);
                         (it = output.erase(it))--;
                     }
@@ -795,11 +795,14 @@ namespace asc
                         symbol* sym = dynamic_cast<symbol*>(convertee);
                         storage_register* temp_dest;
 
-                        if (il != nullptr)
+                        asc::debug("casting candidate: " + convertee->to_string());
+
+                        if (il != nullptr || (sym != nullptr && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE))
                         {
                             // retrieve value with sign extension if necessary
                             temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
-                                false, false, fp_dest ? true : dest_type->get_size() > sym->get_size()));
+                                false, false, fp_dest ? true : dest_type->get_size() > (il ? il->get_size() : sym->get_size())));
+                            std::cout << "temp_dest: " << temp_dest->to_string() << std::endl;
                             if (fp_dest) // integral -> float/double
                             {
                                 // being converted to floating point
@@ -808,24 +811,27 @@ namespace asc
                                     + " xmm4, rax");
                             }
                         }
-                        else if (sym != nullptr)
+                        else if (sym != nullptr && *(sym->type) == *dest_type)
                         {
-                            if (sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // floating point variable or literal
+                            asc::debug("cast to original type");
+                            temp_dest = &(get_register(fp_dest ? "xmm4" : "rax"));
+                            retrieve_value(*temp_dest);
+                        }
+                        else if (sym != nullptr && sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                        {
+                            if (fp_dest) // float/double -> double/float
                             {
-                                if (dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) // float/double -> double/float
-                                {
-                                    temp_dest = &(get_register("xmm4"));
-                                    retrieve_value(*temp_dest);
-                                    as.instruct(scope->name(), "mov rax, " + sym->m_name);
-                                    as.instruct(scope->name(), std::string("cvtss2s") + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name +
-                                        ", " + temp_dest->word() + " [rax]");
-                                }
-                                else // float/double -> integral
-                                {
-                                    temp_dest = &(get_register("rax"));
-                                    retrieve_value(get_register("xmm4"));
-                                    as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax, xmm4");
-                                }
+                                temp_dest = &(get_register("xmm4"));
+                                retrieve_value(*temp_dest);
+                                as.instruct(scope->name(), "lea rax, " + sym->location());
+                                as.instruct(scope->name(), std::string("cvts") + (sym->m_name == "double" ? 'd' : 's') +
+                                    "2s" + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name + ", " + sym->word() + " [rax]");
+                            }
+                            else // float/double -> integral
+                            {
+                                temp_dest = &(get_register("rax"));
+                                retrieve_value(get_register("xmm4"));
+                                as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax, xmm4");
                             }
                         }
                         else
@@ -834,6 +840,7 @@ namespace asc
                             return STATE_SYNTAX_ERROR;
                         }
                         preserve_value(*temp_dest);
+                        (it = output.erase(it))--;
                     }
                 }
             }
@@ -856,12 +863,16 @@ namespace asc
                     h += top_size;
                 }
                 as.instruct(scope->name(), "call " + f_sym->m_name);
-                preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size())); // preserve the return value
+                if (f_sym->get_size() != 0)
+                    preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size())); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
             {
-                preserve_symbol(sym);
+                if (dynamic_cast<type_symbol*>(sym) != nullptr) // if it's a type symbol
+                    stack_emulation.push_back(sym);
+                else
+                    preserve_symbol(sym);
                 (it = output.erase(it))--;
             }
             else if (is_string_literal(*token)) // string literal
@@ -1106,7 +1117,8 @@ namespace asc
         bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
-        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + (sx ? "sx" : dest.instruction_suffix())) +
+        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + (sx ? "sx" :
+            (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : dest.instruction_suffix()))) +
             ' ' + dest.m_name + ", " + (dereference_needed ? element->word() + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
@@ -1119,7 +1131,7 @@ namespace asc
         if (element->dynamic)
             delete element;
         stack_emulation.pop_back();
-        return storage.byte_equivalent(size);
+        return sx ? dest : storage.byte_equivalent(size);
     }
 
     std::string parser::top_location()
