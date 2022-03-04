@@ -1,6 +1,11 @@
 use int printf(char[], double);
 
+# floating-point -> integral
+# integral -> floating-point
+# floating-point -> floating-point
+
 int main()
 {
-    printf("%f", (5.5 => float) => double);
+    float f = 5.3 => double;
+    printf("%f", f);
 }

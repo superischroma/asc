@@ -333,19 +333,6 @@ namespace asc
         return -1;
     }
 
-    std::string get_word(int size)
-    {
-        if (size == 1)
-            return "byte";
-        if (size == 2)
-            return "word";
-        if (size == 4)
-            return "dword";
-        if (size == 8)
-            return "qword";
-        return "-1";
-    }
-
     std::string& unwrap(std::string& sl)
     {
         if (sl.length() == 0) // not even a quote LOL

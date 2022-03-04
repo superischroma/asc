@@ -77,7 +77,7 @@ namespace asc
         std::string to_string() override;
     };
 
-    extern std::map<std::string,  std::unique_ptr<asc::storage_register>> STANDARD_REGISTERS;
+    extern std::map<std::string, std::shared_ptr<asc::storage_register>> STANDARD_REGISTERS;
     storage_register& get_register(std::string& str);
     storage_register& get_register(std::string&& str);
 
@@ -133,6 +133,8 @@ namespace asc
         std::string to_string() override;
         int get_size() override;
     };
+
+    std::string word(int size);
 }
 
 #endif

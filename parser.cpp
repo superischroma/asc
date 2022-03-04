@@ -758,18 +758,22 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        symbol* fps = nullptr;
+                        int fz = 0;
                         if (!stack_emulation.empty())
                         {
                             auto* t = stack_emulation.back();
+                            std::cout << "fp test: " << (t ? t->to_string() : "null") << std::endl;
                             symbol* s = dynamic_cast<symbol*>(t);
+                            fp_register* fp_reg = dynamic_cast<fp_register*>(t);
                             if (s != nullptr && s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
-                                fps = s;
+                                fz = s->get_size();
+                            else if (fp_reg != nullptr)
+                                fz = fp_reg->effective_sizes.top();
                         }
-                        auto& src = retrieve_value(get_register(fps ? "xmm4" : "rax"));
+                        auto& src = retrieve_value(get_register(fz ? "xmm4" : "rax"));
                         forget_top();
-                        as.instruct(scope->name(), "mov" + (fps != nullptr ? fps->instruction_suffix() : "") + ' ' + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
-                        preserve_value(src, fps ? fps->get_size() : -1);
+                        as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "") + ' ' + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
+                        preserve_value(src, fz ? fz : -1);
                         (it = output.erase(it))--;
                     }
                 }
@@ -804,7 +808,7 @@ namespace asc
                         {
                             // retrieve value with sign extension if necessary
                             temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
-                                false, false, fp_dest ? true : dest_type->get_size() > (il ? il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
+                                false, false, dest_type->get_size() > (il ? il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
                             std::cout << "temp_dest: " << temp_dest->to_string() << std::endl;
                             if (fp_dest) // integral -> float/double
                             {
@@ -821,9 +825,9 @@ namespace asc
                                 temp_dest = &(get_register("xmm4"));
                                 int size;
                                 storage_register* loc = nullptr;
-                                if (sym != nullptr)
+                                if (sym != nullptr && sym->name_identified)
                                 {
-                                    as.instruct(scope->name(), "lea rax, " + sym->location());
+                                    as.instruct(scope->name(), "mov rax, " + sym->location());
                                     size = sym->get_size();
                                 }
                                 else
@@ -832,14 +836,14 @@ namespace asc
                                 if ((size == 8 && is_double) || (size != 8 && !is_double))
                                 {
                                     as.instruct(scope->name(), std::string("movs") + (size == 8 ? 'd' : 's') +
-                                        ' ' + temp_dest->m_name + ", " + (sym != nullptr ? sym->word() +
-                                        " [rax]" : loc->m_name));
+                                        ' ' + temp_dest->m_name + ", " + (sym != nullptr ? 
+                                        (sym->name_identified ? sym->word() + " [rax]" : sym->location()) : loc->m_name));
                                 }
                                 else
                                 {
                                     as.instruct(scope->name(), std::string("cvts") + (size == 8 ? 'd' : 's') +
                                         "2s" + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name + ", " +
-                                        (sym != nullptr ? sym->word() + " [rax]" : loc->m_name));
+                                        (sym != nullptr ? (sym->name_identified ? sym->word() + " [rax]" : sym->location()) : loc->m_name));
                                 }
                             }
                             else // float/double -> integral
@@ -1099,9 +1103,7 @@ namespace asc
     {
         if (size == -1)
             size = location.get_size();
-        storage_register* location_ptr = &location;
-        fp_register* fpr = dynamic_cast<fp_register*>(location_ptr);
-        std::cout << location.to_string() << ", " << (fpr ? fpr->to_string() : "null") << std::endl;
+        fp_register* fpr = dynamic_cast<fp_register*>(&location);
         if (fpr != nullptr)
         {
             asc::debug("effective size added for register " + location.m_name + ": " + std::to_string(size));
@@ -1111,7 +1113,7 @@ namespace asc
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push_back(&location);
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" +
-            location.instruction_suffix() + ' ' + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
+            (fpr ? std::string("s") + (size == 4 ? 's' : 'd') : "") + ' ' + asc::relative_dereference("rbp", -position, asc::word(size)) + ", " + location.m_name);
         return -position;
     }
 
@@ -1132,7 +1134,6 @@ namespace asc
         if (dpc > dpm) dpm = dpc; // update max if needed
         return -position;
     }
-
     /**
      * @brief Takes a value off of the stack in emulation and output and stores it in the storage argument
      * 
@@ -1148,28 +1149,29 @@ namespace asc
     {
         stackable_element* element = stack_emulation.back();
         symbol* sym = dynamic_cast<symbol*>(element);
-        fp_register* fp_storage = dynamic_cast<fp_register*>(&storage);
+        fp_register* fp_storage = dynamic_cast<fp_register*>(element);
         int lsize = !sx && !use_passed_storage && fp_storage ? fp_storage->effective_sizes.top() : element->get_size();
         storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lsize);
+        std::cout << dest.to_string() << ", " << sx << ", " << lsize << std::endl;
         if (!sx && !use_passed_storage && fp_storage)
             fp_storage->effective_sizes.pop();
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
         std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, sx ? element->word() : dest.word());
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, sx ? element->word() : (fp_storage ? word(lsize) : dest.word()));
         bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
         as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :
-            (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : dest.instruction_suffix()))) +
+            (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : (fp_storage ? std::string("s") + (lsize == 4 ? 's' : 'd') : "")))) +
             ' ' + dest.m_name + ", " + (dereference_needed ? (sx ? element->word() : dest.word()) + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {
             as.instruct(scope->name(), std::string("mov") + ' ' +
-                ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)] +
-                ", " + (dereference_needed ? (sx ? element->word() : dest.word()) + " [rax]" : src));
+                get_register(ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)]).byte_equivalent(lsize).m_name +
+                ", " + (dereference_needed ? (sx ? element->word() : (fp_storage ? word(lsize) : dest.word())) + " [rax]" : src));
         }
         dpc -= lsize;
         if (element->dynamic)
