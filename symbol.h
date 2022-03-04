@@ -67,7 +67,17 @@ namespace asc
         std::string instruction_suffix();
     };
 
-    extern std::map<std::string, asc::storage_register> STANDARD_REGISTERS;
+    class fp_register: public storage_register
+    {
+    public:
+        std::stack<int> effective_sizes;
+
+        fp_register(std::string name, int size);
+
+        std::string to_string() override;
+    };
+
+    extern std::map<std::string,  std::unique_ptr<asc::storage_register>> STANDARD_REGISTERS;
     storage_register& get_register(std::string& str);
     storage_register& get_register(std::string&& str);
 

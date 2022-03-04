@@ -16,6 +16,8 @@ namespace asc
 
 int main(int argc, char* argv[])
 {
+    std::cout << asc::get_register("xmm0").to_string() << std::endl;
+
     // init keyword regex pattern
     asc::KEYWORD_REGEX_PATTERN += "\\b(";
     for (auto it = asc::STANDARD_KEYWORDS.cbegin(); it != asc::STANDARD_KEYWORDS.cend(); it++)

@@ -678,7 +678,7 @@ namespace asc
                         auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
                         auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), "add" + (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
-                        preserve_value(second);
+                        preserve_value(second, fpl ? fpl->get_size() : -1);
                         (it = output.erase(it))--;
                     }
                 }
@@ -691,7 +691,7 @@ namespace asc
                         auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
                         auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), "sub" + (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
-                        preserve_value(second);
+                        preserve_value(second, fpl ? fpl->get_size() : -1);
                         (it = output.erase(it))--;
                     }
                 }
@@ -705,7 +705,7 @@ namespace asc
                         auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), std::string(fpl == nullptr ? "i" : "") + "mul" +
                             (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
-                        preserve_value(second);
+                        preserve_value(second, fpl ? fpl->get_size() : second.get_size());
                         (it = output.erase(it))--;
                     }
                     if (oper.operands == 1)
@@ -725,14 +725,15 @@ namespace asc
                         if (fpl)
                         {
                             as.instruct(scope->name(), "div" + fpl->instruction_suffix() + ' ' + second.m_name + ", " + first.m_name);
-                            preserve_value(second);
+                            preserve_value(second, fpl ? fpl->get_size() : -1);
                         }
                         else
                         {
                             auto& d = get_register("rdx").byte_equivalent(second.get_size());
                             as.instruct(scope->name(), "xor " + d.m_name + ", " + d.m_name);
                             as.instruct(scope->name(), "idiv " + first.m_name);
-                            preserve_value(first.get_size() != 1 ? second : get_register("al"));
+                            preserve_value(first.get_size() != 1 ? second : get_register("al"),
+                                fpl ? fpl->get_size() : -1);
                         }
                         (it = output.erase(it))--;
                     }
@@ -747,7 +748,8 @@ namespace asc
                         auto& d = get_register("rdx").byte_equivalent(second.get_size());
                         as.instruct(scope->name(), "xor " + d.m_name + ", " + d.m_name);
                         as.instruct(scope->name(), "idiv " + first.m_name);
-                        preserve_value(first.get_size() != 1 ?  get_register("rdx").byte_equivalent(second.get_size()) : get_register("ah"));
+                        preserve_value(first.get_size() != 1 ? get_register("rdx").byte_equivalent(second.get_size())
+                            : get_register("ah"));
                         (it = output.erase(it))--;
                     }
                 }
@@ -767,7 +769,7 @@ namespace asc
                         auto& src = retrieve_value(get_register(fps ? "xmm4" : "rax"));
                         forget_top();
                         as.instruct(scope->name(), "mov" + (fps != nullptr ? fps->instruction_suffix() : "") + ' ' + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
-                        preserve_value(src);
+                        preserve_value(src, fps ? fps->get_size() : -1);
                         (it = output.erase(it))--;
                     }
                 }
@@ -812,27 +814,42 @@ namespace asc
                                     + " xmm4, rax");
                             }
                         }
-                        else if (sym != nullptr && *(sym->type) == *dest_type)
-                        {
-                            asc::debug("cast to original type");
-                            temp_dest = &(get_register(fp_dest ? "xmm4" : "rax"));
-                            retrieve_value(*temp_dest);
-                        }
-                        else if (sym != nullptr && sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
+                        else if ((sym != nullptr && sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) || (reg != nullptr && reg->is_fp_register()))
                         {
                             if (fp_dest) // float/double -> double/float
                             {
                                 temp_dest = &(get_register("xmm4"));
-                                retrieve_value(*temp_dest);
-                                as.instruct(scope->name(), "lea rax, " + sym->location());
-                                as.instruct(scope->name(), std::string("cvts") + (sym->m_name == "double" ? 'd' : 's') +
-                                    "2s" + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name + ", " + sym->word() + " [rax]");
+                                int size;
+                                storage_register* loc = nullptr;
+                                if (sym != nullptr)
+                                {
+                                    as.instruct(scope->name(), "lea rax, " + sym->location());
+                                    size = sym->get_size();
+                                }
+                                else
+                                    loc = &(retrieve_value(get_register("xmm5"), false, false, false, false, &size));
+                                std::cout << "covid vaccine: " << size << std::endl;
+                                if ((size == 8 && is_double) || (size != 8 && !is_double))
+                                {
+                                    as.instruct(scope->name(), std::string("movs") + (size == 8 ? 'd' : 's') +
+                                        ' ' + temp_dest->m_name + ", " + (sym != nullptr ? sym->word() +
+                                        " [rax]" : loc->m_name));
+                                }
+                                else
+                                {
+                                    as.instruct(scope->name(), std::string("cvts") + (size == 8 ? 'd' : 's') +
+                                        "2s" + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name + ", " +
+                                        (sym != nullptr ? sym->word() + " [rax]" : loc->m_name));
+                                }
                             }
                             else // float/double -> integral
                             {
                                 temp_dest = &(get_register("rax"));
-                                retrieve_value(get_register("xmm4"));
-                                as.instruct(scope->name(), std::string("cvtts") + (sym->type->m_name == "double" ? 'd' : 's') + "2si rax, xmm4");
+                                int size;
+                                retrieve_value(get_register("xmm4"), false, false, false, false, &size);
+                                as.instruct(scope->name(), std::string("cvtts") + (size == 8 ? 'd' : 's') +
+                                    "2si rax, xmm4");
+                                temp_dest = &(temp_dest->byte_equivalent(dest_type->get_size()));
                             }
                         }
                         else
@@ -840,7 +857,8 @@ namespace asc
                             asc::err("left hand side of cast is not a candidate for casting");
                             return STATE_SYNTAX_ERROR;
                         }
-                        preserve_value(*temp_dest);
+                        std::cout << temp_dest << std::endl;
+                        preserve_value(*temp_dest, dest_type->get_size());
                         (it = output.erase(it))--;
                     }
                 }
@@ -865,7 +883,7 @@ namespace asc
                 }
                 as.instruct(scope->name(), "call " + f_sym->m_name);
                 if (f_sym->get_size() != 0)
-                    preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size())); // preserve the return value
+                    preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size()), f_sym->get_size()); // preserve the return value
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
@@ -1077,12 +1095,23 @@ namespace asc
         return STATE_FOUND;
     }
 
-    int parser::preserve_value(storage_register& location, symbol* scope)
+    int parser::preserve_value(storage_register& location, int size, symbol* scope)
     {
-        int position = (dpc += location.size);
+        if (size == -1)
+            size = location.get_size();
+        storage_register* location_ptr = &location;
+        fp_register* fpr = dynamic_cast<fp_register*>(location_ptr);
+        std::cout << location.to_string() << ", " << (fpr ? fpr->to_string() : "null") << std::endl;
+        if (fpr != nullptr)
+        {
+            asc::debug("effective size added for register " + location.m_name + ": " + std::to_string(size));
+            fpr->effective_sizes.push(size);
+        }
+        int position = (dpc += size);
         if (dpc > dpm) dpm = dpc; // update max if needed
         stack_emulation.push_back(&location);
-        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" + location.instruction_suffix() + ' ' + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" +
+            location.instruction_suffix() + ' ' + asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
         return -position;
     }
 
@@ -1112,37 +1141,43 @@ namespace asc
      * @param cc Whether this function call might need to follow x64 calling convention rules
      * @param sx Whether the value should be sign extended once it is retrieved
      * @param use_passed_storage Whether it should not check for a proper storage register extension and use the one provided by the callee
+     * @param size Reference to a variable which stores the size the register used
      * @return storage_register& The actual register it was stored in if the function chose an larger or smaller extension register
      */
-    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx, bool use_passed_storage)
+    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx, bool use_passed_storage, int* size)
     {
         stackable_element* element = stack_emulation.back();
         symbol* sym = dynamic_cast<symbol*>(element);
-        storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lea ? 8 : element->get_size());
-        int size = element->get_size();
+        fp_register* fp_storage = dynamic_cast<fp_register*>(&storage);
+        int lsize = !sx && !use_passed_storage && fp_storage ? fp_storage->effective_sizes.top() : element->get_size();
+        storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lsize);
+        if (!sx && !use_passed_storage && fp_storage)
+            fp_storage->effective_sizes.pop();
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
         std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, dest.word());
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, sx ? element->word() : dest.word());
         bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
-        as.instruct(scope->name(), std::string(lea ? "lea" : "mov" + (sx ? "sx" :
+        as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :
             (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : dest.instruction_suffix()))) +
-            ' ' + dest.m_name + ", " + (dereference_needed ? dest.word() + " [rax]" : src));
+            ' ' + dest.m_name + ", " + (dereference_needed ? (sx ? element->word() : dest.word()) + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {
-            as.instruct(scope->name(), std::string(lea ? "lea" : "mov") + ' ' +
+            as.instruct(scope->name(), std::string("mov") + ' ' +
                 ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)] +
-                ", " + (dereference_needed ? dest.word() + " [rax]" : src));
+                ", " + (dereference_needed ? (sx ? element->word() : dest.word()) + " [rax]" : src));
         }
-        dpc -= element->get_size();
+        dpc -= lsize;
         if (element->dynamic)
             delete element;
         stack_emulation.pop_back();
-        return sx || use_passed_storage ? dest : storage.byte_equivalent(size);
+        if (size != nullptr)
+            *size = lsize;
+        return dest;
     }
 
     std::string parser::top_location()

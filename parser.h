@@ -67,10 +67,10 @@ namespace asc
         evaluation_state eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& array);
 
         // value management
-        int preserve_value(storage_register& location, symbol* scope = nullptr);
+        int preserve_value(storage_register& location, int size = -1, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
         int reserve_data_space(int size);
-        storage_register& retrieve_value(storage_register& storage, bool lea = false, bool cc = false, bool sx = false, bool use_passed_storage = false);
+        storage_register& retrieve_value(storage_register& storage, bool lea = false, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
         std::string top_location();
         void forget_top();
 

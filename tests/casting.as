@@ -1,6 +1,6 @@
-use int printf(char[], byte);
+use int printf(char[], double);
 
 int main()
 {
-    printf("%d", (66000 => short) => byte);
+    printf("%f", (5.5 => float) => double);
 }
