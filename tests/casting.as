@@ -1,11 +1,14 @@
 use int printf(char[], double);
 
-# floating-point -> integral
-# integral -> floating-point
-# floating-point -> floating-point
+# float -> double [x]
+# double -> float [x]
+# int -> long [x]
+# short -> byte [x]
+# byte -> double [x]
+# double -> byte [x]
 
 int main()
 {
-    float f = 5.3 => double;
-    printf("%f", f);
+    byte d = 4;
+    printf("%f", d => float => double);
 }

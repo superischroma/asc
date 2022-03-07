@@ -135,6 +135,9 @@ namespace asc
     };
 
     std::string word(int size);
+    int compare(std::string& w1, std::string& w2);
+    int compare(std::string&& w1, std::string&& w2);
+    int compare(std::string& w1, std::string&& w2);
 }
 
 #endif

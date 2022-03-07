@@ -403,4 +403,37 @@ namespace asc
             return "qword";
         return "";
     }
+
+    int size(std::string& word)
+    {
+        if (word == "byte") 
+            return 1;
+        if (word == "word") 
+            return 2;
+        if (word == "dword")
+            return 4;
+        if (word == "qword")
+            return 8;
+        return -1;
+    }
+
+    int compare(std::string& w1, std::string& w2)
+    {
+        int s1 = size(w1), s2 = size(w2);
+        if (s1 > s2)
+            return 1;
+        if (s1 < s2)
+            return -1;
+        return 0;
+    }
+
+    int compare(std::string&& w1, std::string&& w2)
+    {
+        return compare(w1, w2);
+    }
+
+    int compare(std::string& w1, std::string&& w2)
+    {
+        return compare(w1, w2);
+    }
 }
