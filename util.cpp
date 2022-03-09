@@ -132,4 +132,14 @@ namespace asc
     {
         return escape_chars_regex(str);
     }
+
+    std::string substring(std::string& str, int start, int end)
+    {
+        return str.substr(start, end - start);
+    }
+
+    std::string substring(std::string&& str, int start, int end)
+    {
+        return substring(str, start, end);
+    }
 }

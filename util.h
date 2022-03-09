@@ -20,6 +20,8 @@ namespace asc
     std::string relative_dereference(std::string&& relative_to, int offset, std::string word = "");
     std::string escape_chars_regex(std::string& str);
     std::string escape_chars_regex(std::string&& str);
+    std::string substring(std::string& str, int start, int end);
+    std::string substring(std::string&& str, int start, int end);
 }
 
 #endif

@@ -461,6 +461,8 @@ namespace asc
             sym->offset = this->reserve_data_space(t->get_size());
             stack_emulation.push_back(sym);
         }
+        else
+            sym->name_identified = true;
         return eval_expression(lcurrent);
     }
 
@@ -659,6 +661,34 @@ namespace asc
                 //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
                 db += it.value + ' ';
             asc::debug(db);
+        }
+
+        if (scope == nullptr) // globally scoped expression
+        {
+            std::string value;
+            for (auto it = output.begin(); it != output.end(); it++)
+            {
+                auto* element = &*it;
+                std::string* token = &(element->value);
+                symbol* sym = symbol_table_get(*token);
+                if (OPERATORS.count(*token)) // operator
+                {
+                    auto& oper = OPERATORS[*token];
+                    if (oper.value == "+")
+                    {
+                        if (oper.operands == 2)
+                        {
+                            auto& lhs = *(it - 2);
+                            auto& rhs = *(it - 1);
+                            if (is_string_literal(lhs.value) && is_string_literal(rhs.value))
+                            {
+                                unwrap()
+                            }
+                        }
+                    }
+                }
+            }
+            return STATE_FOUND;
         }
 
         for (auto it = output.begin(); it != output.end(); it++)

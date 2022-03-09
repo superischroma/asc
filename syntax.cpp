@@ -340,8 +340,13 @@ namespace asc
         if (sl[0] == '"') // beginning quote
             sl.erase(sl.begin());
         if (sl[sl.length() - 1] == '"') // end quote
-            sl.erase(sl.end());
+            sl.erase(sl.end() - 1);
         return sl;
+    }
+
+    std::string unwrap(std::string sl)
+    {
+        return sl.length() >= 2 ? substring(sl, sl[0] == '"' ? 1 : 0, sl.length() - (sl[sl.length() - 1] == '"' ? 1 : 0)) : sl;
     }
 
     /* class syntax_node */
