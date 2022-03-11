@@ -665,10 +665,11 @@ namespace asc
 
         if (scope == nullptr) // globally scoped expression
         {
-            std::string value;
-            for (auto it = output.begin(); it != output.end(); it++)
+            std::stack<std::string> run;
+            bool nt = false;
+            for (; !output.empty(); output.pop_front())
             {
-                auto* element = &*it;
+                auto* element = &(output.front());
                 std::string* token = &(element->value);
                 symbol* sym = symbol_table_get(*token);
                 if (OPERATORS.count(*token)) // operator
@@ -678,14 +679,78 @@ namespace asc
                     {
                         if (oper.operands == 2)
                         {
-                            auto& lhs = *(it - 2);
-                            auto& rhs = *(it - 1);
-                            if (is_string_literal(lhs.value) && is_string_literal(rhs.value))
+                            auto rhs = run.top();
+                            run.pop();
+                            auto lhs = run.top();
+                            run.pop();
+                            bool slhs = is_string_literal(lhs),
+                                srhs = is_string_literal(rhs),
+                                nlhs = is_number_literal(lhs),
+                                nrhs = is_number_literal(rhs);
+                            if (slhs && srhs)
+                                run.push('"' + unwrap(lhs) + unwrap(rhs) + '"');
+                            else if (slhs && nrhs)
+                                run.push('"' + unwrap(lhs) + rhs + '"');
+                            else if (nlhs && srhs)
+                                run.push('"' + lhs + unwrap(rhs) + '"');
+                            else if (nlhs && nrhs)
                             {
-                                unwrap()
+                                bool ilhs = is_number_literal(lhs, true),
+                                    irhs = is_number_literal(rhs, true),
+                                    flhs = !is_number_literal(lhs, true),
+                                    frhs = !is_number_literal(rhs, true);
+                                if (ilhs && frhs) // int + float
+                                    run.push(std::to_string(std::stoll(lhs) + std::stod(rhs)));
+                                else if (flhs && irhs) // float + int
+                                    run.push(std::to_string(std::stod(lhs) + std::stoll(rhs)));
+                                else if (ilhs && irhs)
+                                    run.push(std::to_string(std::stoll(lhs) + std::stoll(rhs)));
+                                else if (flhs && frhs)
+                                    run.push(std::to_string(std::stod(lhs) + std::stod(rhs)));
                             }
                         }
                     }
+                    else if (oper.value == "=")
+                    {
+                        if (oper.operands == 2)
+                        {
+                            auto value = run.top();
+                            run.pop();
+                            auto identifier = run.top();
+                            run.pop();
+                            auto* s = symbol_table_get(identifier);
+                            if (s == nullptr)
+                            {
+                                asc::err("symbol is not defined");
+                                return STATE_SYNTAX_ERROR;
+                            }
+                            std::cout << "asdaaddasdadasd: " << s->to_string() << std::endl;
+                            char sz = 'b';
+                            if (s->type->size == 2)
+                                sz = 'w';
+                            else if (s->type->size == 4)
+                                sz = 'd';
+                            else if (s->type->size == 8)
+                                sz = 'q';
+                            as << asc::data << identifier + " d" + sz + ' ' + value + (nt ? ", 0x00" : "");
+                        }
+                    }
+                }
+                else if (is_string_literal(*token))
+                {
+                    auto ctoken = *token;
+                    run.push(ctoken);
+                    nt = true;
+                }
+                else if (is_number_literal(*token) || sym != nullptr)
+                {
+                    auto ctoken = *token;
+                    run.push(ctoken);
+                }
+                else
+                {
+                    asc::err("invalid token encountered while parsing expression");
+                    return STATE_SYNTAX_ERROR;
                 }
             }
             return STATE_FOUND;
@@ -1193,7 +1258,7 @@ namespace asc
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
         std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
                 asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, w);
-        bool dereference_needed = sym != nullptr && sym->name_identified && dest.is_fp_register();
+        bool dereference_needed = sym != nullptr && sym->name_identified && !sym->array;
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
         as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :

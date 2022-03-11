@@ -1,8 +1,8 @@
-use int printf(char[], int);
+use int printf(char[], char[]);
 
-int GLOBAL_CONSTANT = 5;
+char[] tstr = "bruh " + " str";
 
 int main()
 {
-    printf("%d", GLOBAL_CONSTANT);
+    printf("%s", tstr);
 }

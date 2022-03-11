@@ -36,7 +36,7 @@ namespace asc
         { "byte", { "byte", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
         { "ubyte", { "unsigned byte", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
         { "bool", { "bool", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
-        { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 2, nullptr } },
+        { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
         { "short", { "short", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
         { "ushort", { "unsigned short", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
         { "int", { "int", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
@@ -299,7 +299,7 @@ namespace asc
 
     std::string symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_variant=" +
+        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + (array ? "[]" : "") + ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
     }
