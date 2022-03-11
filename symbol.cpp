@@ -145,7 +145,6 @@ namespace asc
 
     storage_register& get_register(std::string& str)
     {
-        std::cout << str << std::endl;
         return *(STANDARD_REGISTERS.at(str));
     }
 
@@ -241,15 +240,7 @@ namespace asc
             if (result[1] >= 'a' && result[1] <= 'd')
                 result += 'x';
         }
-        try
-        {
-            return get_register(result);
-        }
-        catch (std::out_of_range& ex)
-        {
-            std::cout << to_string() << ", " << bs << std::endl;
-            throw ex;
-        }
+        return get_register(result);
     }
 
     bool storage_register::is_fp_register()

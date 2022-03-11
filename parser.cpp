@@ -724,7 +724,6 @@ namespace asc
                                 asc::err("symbol is not defined");
                                 return STATE_SYNTAX_ERROR;
                             }
-                            std::cout << "asdaaddasdadasd: " << s->to_string() << std::endl;
                             char sz = 'b';
                             if (s->type->size == 2)
                                 sz = 'w';
@@ -742,10 +741,15 @@ namespace asc
                     run.push(ctoken);
                     nt = true;
                 }
-                else if (is_number_literal(*token) || sym != nullptr)
+                else if (is_number_literal(*token))
                 {
                     auto ctoken = *token;
                     run.push(ctoken);
+                }
+                else if (sym != nullptr)
+                {
+                    asc::err("use of symbols is not allowed in constant expressions");
+                    return STATE_SYNTAX_ERROR;
                 }
                 else
                 {
@@ -857,7 +861,6 @@ namespace asc
                         if (!stack_emulation.empty())
                         {
                             auto* t = stack_emulation.back();
-                            std::cout << "fp test: " << (t ? t->to_string() : "null") << std::endl;
                             symbol* s = dynamic_cast<symbol*>(t);
                             fp_register* fp_reg = dynamic_cast<fp_register*>(t);
                             if (s != nullptr && s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
@@ -904,7 +907,6 @@ namespace asc
                             // retrieve value with sign extension if necessary
                             temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
                                 false, false, dest_type->get_size() > (il ? il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
-                            std::cout << "temp_dest: " << temp_dest->to_string() << std::endl;
                             if (fp_dest) // integral -> float/double
                             {
                                 // being converted to floating point
@@ -927,7 +929,6 @@ namespace asc
                                 }
                                 else
                                     loc = &(retrieve_value(get_register("xmm5"), false, false, false, false, &size));
-                                std::cout << "covid vaccine: " << size << std::endl;
                                 if ((size == 8 && is_double) || (size != 8 && !is_double))
                                 {
                                     as.instruct(scope->name(), std::string("movs") + (size == 8 ? 'd' : 's') +
@@ -956,7 +957,6 @@ namespace asc
                             asc::err("left hand side of cast is not a candidate for casting");
                             return STATE_SYNTAX_ERROR;
                         }
-                        std::cout << temp_dest << std::endl;
                         preserve_value(*temp_dest, dest_type->get_size());
                         (it = output.erase(it))--;
                     }
@@ -1247,7 +1247,6 @@ namespace asc
         fp_register* fp_element = dynamic_cast<fp_register*>(element);
         int lsize = !sx && !use_passed_storage && fp_element ? fp_element->effective_sizes.top() : element->get_size();
         storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lsize);
-        std::cout << element->to_string() << ", " << dest.to_string() << ", " << sx << ", " << lsize << std::endl;
         std::string w = fp_element ? word(fp_element->effective_sizes.top()) : element->word();
         if (compare(w, dest.word()) > 0)
             w = dest.word();
