@@ -55,7 +55,9 @@ namespace asc
         // prefix-only unary operators
         { "&1p", { "&", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
         { "*1p", { "*", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
-        // besides the casting operator lol
+        { "$", { "$", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
+
+        // casting operator
         { "=>", { "=>", 15, 2 } },
         //
         { "!", { "!", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
@@ -155,6 +157,7 @@ namespace asc
         "++",
         "--",
         "+",
+        "$",
         "->",
         "-",
         "*",

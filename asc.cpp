@@ -16,8 +16,6 @@ namespace asc
 
 int main(int argc, char* argv[])
 {
-    std::cout << asc::get_register("xmm0").to_string() << std::endl;
-
     // init keyword regex pattern
     asc::KEYWORD_REGEX_PATTERN += "\\b(";
     for (auto it = asc::STANDARD_KEYWORDS.cbegin(); it != asc::STANDARD_KEYWORDS.cend(); it++)
@@ -25,20 +23,23 @@ int main(int argc, char* argv[])
     asc::KEYWORD_REGEX_PATTERN += ")\\b";
 
     // init tokenizer regex pattern
-    asc::TOKENIZER_REGEX_PATTERN += '(';
     // keywords
     for (auto it = asc::STANDARD_KEYWORDS.cbegin(); it != asc::STANDARD_KEYWORDS.cend(); it++)
-        asc::TOKENIZER_REGEX_PATTERN += (asc::TOKENIZER_REGEX_PATTERN.length() != 1 ? "|" : "") + *it;
+        asc::TOKENIZER_REGEX_PATTERN += (asc::TOKENIZER_REGEX_PATTERN.length() != 0 ? "|" : "") + *it;
+    // strings
     asc::TOKENIZER_REGEX_PATTERN += (asc::TOKENIZER_REGEX_PATTERN.length() != 1 ? "|" : "") + 
-        std::string("\\\"[^\\\"\\\\\\\\]*(\\\\\\\\.[^\\\"\\\\\\\\]*)*\\\""); // string pattern
-    asc::TOKENIZER_REGEX_PATTERN += "|([-.0-9u|U|l|L|f|F|D]+)"; // number pattern
+        std::string("\\\"[^\\\"\\\\\\\\]*(\\\\\\\\.[^\\\"\\\\\\\\]*)*\\\"");
+    // numeric literals
+    asc::TOKENIZER_REGEX_PATTERN += "|\\b0x[a-fA-F0-9]+L*l*|0b[0-1]+L*l*|[0-9]+\\.[0-9]+D*F*d*f*|[0-9]+D*F*d*f*L*l*\\b"; // number pattern
+    // punctuators
     for (auto it = asc::STANDARD_PUNCTUATORS.cbegin(); it != asc::STANDARD_PUNCTUATORS.cend(); it++)
     {
         std::string punctuator = *it;
         asc::TOKENIZER_REGEX_PATTERN += '|' + asc::escape_chars_regex(punctuator);
     }
-    asc::TOKENIZER_REGEX_PATTERN += "|[0-9]+|[A-z]+)";
-
+    // identifiers
+    asc::TOKENIZER_REGEX_PATTERN += "|\\w+";
+    std::cout << asc::TOKENIZER_REGEX_PATTERN << std::endl;
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())
         asc::warn("no options file found, using default options");

@@ -458,7 +458,7 @@ namespace asc
             (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, scope));
         if (scope != nullptr)
         {
-            sym->offset = this->reserve_data_space(t->get_size());
+            sym->offset = this->reserve_data_space(sym->get_size());
             stack_emulation.push_back(sym);
         }
         else
@@ -1148,7 +1148,7 @@ namespace asc
         return eval_type_construct(current);
     }
 
-    evaluation_state parser::eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& array)
+    evaluation_state parser::eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& pointer)
     {
         syntax_node* slcurrent = lcurrent;
         if (check_eof(slcurrent, true))
@@ -1179,16 +1179,16 @@ namespace asc
         }
         found = dynamic_cast<type_symbol*>(type);
         slcurrent = slcurrent->next;
-        array = false;
+        pointer = false;
         if (!check_eof(slcurrent, true) && *slcurrent == "[")
         {
-            if (check_eof(slcurrent->next, true) || *(slcurrent->next) != "]")
-            {
-                asc::err("expected right closing bracket for array type", slcurrent->line);
-                return STATE_SYNTAX_ERROR;
-            }
-            array = true;
-            slcurrent = slcurrent->next->next;
+            asc::err("obsolete type, use pointers instead", slcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if (!check_eof(slcurrent, true) && *slcurrent == "*")
+        {
+            pointer = true;
+            slcurrent = slcurrent->next;
         }
         lcurrent = slcurrent;
         return STATE_FOUND;
@@ -1257,7 +1257,7 @@ namespace asc
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
         std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
                 asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, w);
-        bool dereference_needed = sym != nullptr && sym->name_identified && !sym->array;
+        bool dereference_needed = sym != nullptr && sym->name_identified && !sym->pointer;
         if (dereference_needed)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
         as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :

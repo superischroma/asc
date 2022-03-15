@@ -253,11 +253,11 @@ namespace asc
         return is_fp_register() ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
-    symbol::symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope)
+    symbol::symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
-        this->array = array;
+        this->pointer = pointer;
         this->variant = variant;
         this->vis = vis;
         this->scope = scope;
@@ -269,8 +269,8 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*&& scope):
-        symbol(name, type, array, variant, vis, scope) {}
+    symbol::symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*&& scope):
+        symbol(name, type, pointer, variant, vis, scope) {}
 
     std::string symbol::location()
     {
@@ -290,19 +290,19 @@ namespace asc
 
     std::string symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + (array ? "[]" : "") + ", symbol_variant=" +
+        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + (pointer ? "*" : "") + ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
     }
 
     int symbol::get_size()
     {
-        return !array ? type->size : 8;
+        return !pointer ? type->size : 8;
     }
 
     std::string symbol::instruction_suffix()
     {
-        return is_floating_point() && !array ? (get_size() == 4 ? "ss" : "sd") : "";
+        return is_floating_point() && !pointer ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
     bool symbol::is_floating_point()
@@ -315,14 +315,14 @@ namespace asc
         return this->m_name == rhs.m_name;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*& scope):
-        symbol(name, type, array, variant, vis, scope)
+    type_symbol::type_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, int size, symbol*& scope):
+        symbol(name, type, pointer, variant, vis, scope)
     {
         this->size = size;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, int size, symbol*&& scope):
-        type_symbol(name, type, array, variant, vis, size, scope) {}
+    type_symbol::type_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, int size, symbol*&& scope):
+        type_symbol(name, type, pointer, variant, vis, size, scope) {}
     
     int type_symbol::get_size()
     {
@@ -355,8 +355,8 @@ namespace asc
             }) != STANDARD_TYPES.end();
     }
 
-    function_symbol::function_symbol(std::string name, type_symbol* type, bool array, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
-        symbol(name, type, array, variant, vis, scope)
+    function_symbol::function_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
+        symbol(name, type, pointer, variant, vis, scope)
     {
         this->external_decl = external_decl;
     }
@@ -370,7 +370,7 @@ namespace asc
         {
             if (i != 0)
                 str += ", ";
-            str += parameters[i]->type->m_name + (parameters[i]->array ? "[]" : "") + ' ' + parameters[i]->m_name;
+            str += parameters[i]->type->m_name + (parameters[i]->pointer ? "*" : "") + ' ' + parameters[i]->m_name;
         }
         str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
         str += '}';
@@ -379,7 +379,7 @@ namespace asc
 
     int function_symbol::get_size()
     {
-        return !array ? type->size : 8;
+        return !pointer ? type->size : 8;
     }
 
     std::string word(int size)
