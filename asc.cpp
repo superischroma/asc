@@ -39,7 +39,6 @@ int main(int argc, char* argv[])
     }
     // identifiers
     asc::TOKENIZER_REGEX_PATTERN += "|\\w+";
-    std::cout << asc::TOKENIZER_REGEX_PATTERN << std::endl;
     std::ifstream ois = std::ifstream("options.cfg");
     if (ois.fail())
         asc::warn("no options file found, using default options");

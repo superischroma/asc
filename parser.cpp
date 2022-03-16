@@ -7,16 +7,11 @@
 #include "parser.h"
 
 #define MAX_INT32 0x7FFFFFFF
+#define HEAP_PTR_IDENTIFIER "__HEAP_PTR"
 
 namespace asc
 {
     class storage_register;
-
-    typedef struct
-    {
-        rpn_element* start;
-        rpn_element* end;
-    } function_argument_segment;
 
     symbol* invalid_symbol = nullptr;
 
@@ -451,7 +446,8 @@ namespace asc
         }
         if (check_eof(slcurrent = slcurrent->next, true))
             return STATE_NEUTRAL;
-        if (*(slcurrent->value) != "=" && *(slcurrent->value) != ";") // this is NOT a variable declaration (most likely a function declaration)
+        bool arrayalloc = *(slcurrent->value) == "~=";
+        if (*(slcurrent->value) != "=" && *(slcurrent->value) != ";" && *(slcurrent->value) != "~=") // this is NOT a variable declaration (most likely a function declaration)
             return STATE_NEUTRAL;
         lcurrent = i_node; // sync up local with identifier node
         symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t, t_array,
@@ -870,9 +866,47 @@ namespace asc
                         }
                         auto& src = retrieve_value(get_register(fz ? "xmm4" : "rax"));
                         forget_top();
-                        as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "") + ' ' + asc::relative_dereference("rbp", dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
+                        as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "")
+                            + ' ' + asc::relative_dereference("rbp",
+                            dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
                         preserve_value(src, fz ? fz : -1);
                         (it = output.erase(it))--;
+                    }
+                }
+                // allocation operator
+                if (oper.value == "~=")
+                {
+                    if (oper.operands == 2)
+                    {
+                        init_heap();
+                        as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
+                        as.instruct(scope->name(), "mov rdx, 8");
+                        retrieve_value(get_register("r8"));
+                        auto* dest = dynamic_cast<symbol*>(stack_emulation.back());
+                        if (!dest)
+                        {
+                            asc::err("destination for allocation must be a symbol");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        if (dest->type->get_size() != 1)
+                            as.instruct(scope->name(), "imul r8, " + std::to_string(dest->type->get_size()));
+                        as.external("HeapAlloc");
+                        as.instruct(scope->name(), "call HeapAlloc");
+                        forget_top();
+                        as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp",
+                            dest->offset) + ", rax");
+                        preserve_value(get_register("rax"));
+                        (it = output.erase(it))--;
+                    }
+                }
+                // subscript operator
+                if (oper.value == "[")
+                {
+                    if (oper.operands == 2)
+                    {
+                        auto& index = retrieve_value(get_register("rax"));
+                        symbol* isym = dynamic_cast<symbol*>(stack_emulation.back());
+                        auto& item = retrieve_value(get_register("rbx"));
                     }
                 }
                 // casting operator
@@ -1413,6 +1447,18 @@ namespace asc
                 return sym;
         }
         return nullptr;
+    }
+
+    // Initializes the heap if necessary.
+    void parser::init_heap()
+    {
+        if (heap)
+            return;
+        as.external("GetProcessHeap");
+        as << asc::data << std::string(HEAP_PTR_IDENTIFIER) + " dq 0";
+        as.instruct(scope->name(), "call GetProcessHeap");
+        as.instruct(scope->name(), std::string("mov qword [") + HEAP_PTR_IDENTIFIER + "], rax");
+        heap = true;
     }
 
     type_symbol* parser::get_type(std::string str)

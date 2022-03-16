@@ -93,8 +93,6 @@ namespace asc
 
     bool is_numerical(std::string& test);
 
-    bool is_primitive(std::string& test);
-
     bool is_string_literal(std::string& test);
 
     bool is_number_literal(std::string& test, bool integral = false);

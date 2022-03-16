@@ -29,6 +29,7 @@ namespace asc
         int fplc; // floating point literal counter
         int dpc; // data preservation counter (how much data do we need to preserve right now?)
         int dpm; // data preservation max (how many will we need at a time)
+        bool heap; // has the heap been set up?
         std::deque<stackable_element*> stack_emulation;
 
         parser(syntax_node* root);
@@ -84,6 +85,7 @@ namespace asc
         // utility
         symbol* get_current_function();
         symbol* floating_point_stack(int argc = 2);
+        void init_heap();
 
         // type management
         type_symbol* get_type(std::string str);

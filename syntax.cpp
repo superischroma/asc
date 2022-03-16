@@ -24,6 +24,7 @@ namespace asc
         { "%=", { "%=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "+=", { "+=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "-=", { "-=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
+        { "~=", { "~=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
         { "=", { "=", 2, 2, RIGHT_OPERATOR_ASSOCATION } },
 
         // ternary operator
@@ -55,7 +56,6 @@ namespace asc
         // prefix-only unary operators
         { "&1p", { "&", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
         { "*1p", { "*", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
-        { "$", { "$", 15, 1, RIGHT_OPERATOR_ASSOCATION, PREFIX_OPERATOR } },
 
         // casting operator
         { "=>", { "=>", 15, 2 } },
@@ -141,6 +141,7 @@ namespace asc
         "&&",
         "==",
         "!=",
+        "~=",
         "<<",
         ">>",
         "<=>",
@@ -157,7 +158,6 @@ namespace asc
         "++",
         "--",
         "+",
-        "$",
         "->",
         "-",
         "*",
@@ -203,6 +203,7 @@ namespace asc
         "extends",
         "object"
     };
+
     std::string KEYWORD_REGEX_PATTERN;
 
     unsigned char is_keyword(std::string& test)
@@ -293,19 +294,6 @@ namespace asc
             res += c;
         }
         return res;
-    }
-
-    bool is_primitive(std::string& test)
-    {
-        return test == "void" ||
-            test == "byte" ||
-            test == "bool" ||
-            test == "char" ||
-            test == "short" ||
-            test == "int" ||
-            test == "long" ||
-            test == "float" ||
-            test == "double";
     }
 
     int get_type_size(std::string& prim)

@@ -57,6 +57,7 @@ namespace asc
                 current = current->next = new syntax_node(nullptr, t, c, line);
             }
         }
+        asc::debug("tokenized file successfully");
         return head->next;
     }
 }
