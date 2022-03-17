@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <stack>
 
 #include "syntax.h"
 
@@ -130,6 +131,17 @@ namespace asc
         bool external_decl;
 
         function_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl);
+        std::string to_string() override;
+        int get_size() override;
+    };
+
+    class array_element: public stackable_element
+    {
+    public:
+        symbol* array;
+        int index;
+
+        array_element(symbol* array, int index);
         std::string to_string() override;
         int get_size() override;
     };

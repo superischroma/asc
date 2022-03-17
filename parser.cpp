@@ -904,9 +904,12 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        auto& index = retrieve_value(get_register("rax"));
+                        auto& index = retrieve_value(get_register("rbx"));
                         symbol* isym = dynamic_cast<symbol*>(stack_emulation.back());
-                        auto& item = retrieve_value(get_register("rbx"));
+                        auto& item = retrieve_value(get_register("rax"));
+                        as.instruct(scope->name(), "lea rax, qword [rbx * " + std::to_string(isym->type->get_size()) + " + rax]");
+                        preserve_value(get_register("rax"));
+                        (it = output.erase(it))--;
                     }
                 }
                 // casting operator
@@ -1065,8 +1068,6 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
         }
-
-        // asc -experimental -debug -symbolize tests/expressions.as
 
         return STATE_FOUND;
     }

@@ -382,6 +382,22 @@ namespace asc
         return !pointer ? type->size : 8;
     }
 
+    array_element::array_element(symbol* array, int index)
+    {
+        this->array = array;
+        this->index = index;
+    }
+
+    std::string array_element::to_string()
+    {
+        return "asc::array_element{array=" + (array != nullptr ? array->to_string() : "null") + ", index=" + std::to_string(index) + '}';
+    }
+
+    int array_element::get_size()
+    {
+        return this->array->type->size;
+    }
+
     std::string word(int size)
     {
         if (size == 1)
