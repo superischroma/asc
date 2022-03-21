@@ -11,4 +11,7 @@ int main()
     printf("%f, ", m[0][0]);
     printf("%f, ", m[1][1]);
     printf("%f", m[1][0]);
+    delete m[0];
+    delete m[1];
+    delete m;
 }

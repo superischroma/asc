@@ -90,7 +90,7 @@ public void genericUsage()
 
 public int castExample(long l)
 {
-    return (int) l; # Casting to int
+    return l => int; # Casting to int
 }
 
 # Implementation
@@ -385,7 +385,7 @@ use int printf(char[], double);
 public int arrayTest()
 {
     # assign an integer to an array declaration to allocate x amount of elements
-    int* later := 10; # this creates an array of 10 ints
+    int* later ~= 10; # this creates an array of 10 ints
     # assign an array literal to an array declaration
     double* now = [5.3, 6.4];
     # obtain and print a value
@@ -393,4 +393,7 @@ public int arrayTest()
     # assign a new value to an array index
     now[1] = 7.3; # 6.4 has been overridden by 7.3 at index 1
     printf("%f", now[1]); # result: 7.3
+    # delete array memory
+    delete later; # delete the memory used by later
+    delete now; # delete the memory used by now
 }

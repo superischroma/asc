@@ -13,6 +13,7 @@ public int main()
     numbers[1] = 3;
     printf("%d, ", numbers[0]);
     printf("%d", numbers[1]);
+    delete numbers;
     # assign an array literal to an array declaration
     #double* now = [5.3, 6.4];
     # obtain and print a value

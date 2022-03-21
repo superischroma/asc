@@ -152,6 +152,12 @@ namespace asc
                 continue;
             if (es_rs == asc::STATE_SYNTAX_ERROR)
                 return -1;
+            asc::evaluation_state es_dl = ps.eval_delete_statement();
+            asc::debug("delete statement: " + std::to_string((int) es_dl));
+            if (es_dl == asc::STATE_FOUND)
+                continue;
+            if (es_dl == asc::STATE_SYNTAX_ERROR)
+                return -1;
             asc::evaluation_state es_fd = ps.eval_function_header();
             asc::debug("function decl: " + std::to_string((int) es_fd));
             if (es_fd == asc::STATE_FOUND)
@@ -163,6 +169,12 @@ namespace asc
             if (es_vd == asc::STATE_FOUND)
                 continue;
             if (es_vd == asc::STATE_SYNTAX_ERROR)
+                return -1;
+            asc::evaluation_state es_tc = ps.eval_type_construct();
+            asc::debug("type construct: " + std::to_string((int) es_tc));
+            if (es_tc == asc::STATE_FOUND)
+                continue;
+            if (es_tc == asc::STATE_SYNTAX_ERROR)
                 return -1;
             asc::evaluation_state es_exp = ps.eval_expression();
             asc::debug("expression: " + std::to_string((int) es_exp));

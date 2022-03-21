@@ -341,7 +341,7 @@ namespace asc
         for (int i = 0; i < members.size(); i++)
         {
             if (i != 0) s += ", ";
-            s += members[i]->m_name;
+            s += members[i]->type->m_name + asc::pointers(members[i]->pointer) + ' ' + members[i]->m_name;
         }
         s += ']';
 

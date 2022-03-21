@@ -25,6 +25,7 @@ namespace asc
         this->fplc = 0;
         this->dpc = 0;
         this->dpm = 0;
+        this->heap = false;
         // add all standard types
         for (auto& p : STANDARD_TYPES)
             this->symbols[p.first].push_back(&(p.second));
@@ -1120,6 +1121,35 @@ namespace asc
         return eval_return_statement(current);
     }
 
+    evaluation_state parser::eval_delete_statement(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*lcurrent != "delete")
+            return STATE_NEUTRAL;
+        if (scope == nullptr)
+        {
+            asc::err("delete statement outside of function", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        auto exp = eval_expression(lcurrent = lcurrent->next);
+        if (exp != STATE_FOUND)
+            return exp;
+        init_heap();
+        as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
+        as.instruct(scope->name(), "mov rdx, 0");
+        retrieve_stack_value(get_register("r8"));
+        as.external("HeapFree");
+        as.instruct(scope->name(), "call HeapFree");
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::eval_delete_statement()
+    {
+        syntax_node* current = this->current;
+        return eval_delete_statement(current);
+    }
+
     evaluation_state parser::eval_type_construct(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent, true))
@@ -1153,7 +1183,7 @@ namespace asc
         }
         if (check_eof(lcurrent = lcurrent->next)) // move past brace
             return STATE_SYNTAX_ERROR;
-        type_symbol* sym = new type_symbol(identifier, get_type("void"), false, symbol_variants::STRUCTLIKE_TYPE,
+        type_symbol* sym = new type_symbol(identifier, nullptr, false, symbol_variants::STRUCTLIKE_TYPE,
             visibilities::value_of(asc::to_uppercase(v)), 0, this->scope);
         symbol_table_insert(identifier, sym);
         int overall_size = 0; // keep track of type's size
@@ -1170,8 +1200,6 @@ namespace asc
                 asc::err("type expected", t_line);
                 return STATE_SYNTAX_ERROR;
             }
-            if (check_eof(lcurrent = lcurrent->next)) // move to identifier
-                return STATE_SYNTAX_ERROR;
             std::string identifier = *(lcurrent->value);
             if (lcurrent->type != syntax_types::IDENTIFIER)
             {
@@ -1192,6 +1220,7 @@ namespace asc
         }
         sym->size = overall_size; // update type's size with the size of its members
         current = lcurrent = lcurrent->next;
+        asc::debug("created type: " + sym->to_string());
         return STATE_FOUND;
     }
 

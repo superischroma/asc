@@ -37,7 +37,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.asharp",
-				"match": "\\b(if|for|while|use|return)\\b"
+				"match": "\\b(if|for|while|use|return|delete)\\b"
 			},
 			{
 				"name": "constant.language.asharp",
