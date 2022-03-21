@@ -377,8 +377,7 @@ namespace asc
             if (i != 0)
                 str += ", ";
             str += parameters[i]->type->m_name;
-            for (int i = 0; i < parameters[i]->pointer; i++)
-                str += '*';
+            for (int j = 0; j < parameters[i]->pointer; j++) str += '*';
             str += ' ' + parameters[i]->m_name;
         }
         str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
@@ -391,22 +390,23 @@ namespace asc
         return !pointer ? type->size : 8;
     }
 
-    reference_element::reference_element(int size, int offset, bool fp)
+    reference_element::reference_element(int offset, bool fp, type_symbol* type, int pointer)
     {
-        this->size = size;
         this->offset = offset;
         this->fp = fp;
+        this->type = type;
+        this->pointer = pointer;
     }
 
     std::string reference_element::to_string()
     {
-        return "asc::reference_element{size=" + std::to_string(size) + ", offset=" + std::to_string(offset) + 
+        return "asc::reference_element{type=" + type->m_name + asc::pointers(pointer) + ", offset=" + std::to_string(offset) + 
             ", fp=" + asc::to_string(fp) + '}';
     }
 
     int reference_element::get_size()
     {
-        return size;
+        return !pointer ? type->size : 8;
     }
 
     std::string word(int size)

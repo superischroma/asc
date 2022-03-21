@@ -23,6 +23,7 @@ namespace asc
     std::string substring(std::string& str, int start, int end);
     std::string substring(std::string&& str, int start, int end);
     std::string to_string(bool b);
+    std::string pointers(int count);
 }
 
 #endif

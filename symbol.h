@@ -138,11 +138,13 @@ namespace asc
     class reference_element: public stackable_element
     {
     public:
-        int size;
         int offset;
         bool fp;
+        // qualified type
+        type_symbol* type;
+        int pointer;
 
-        reference_element(int size, int offset, bool fp);
+        reference_element(int offset, bool fp, type_symbol* type, int pointer);
         std::string to_string() override;
         int get_size() override;
     };

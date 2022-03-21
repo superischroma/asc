@@ -887,19 +887,26 @@ namespace asc
                         as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
                         as.instruct(scope->name(), "mov rdx, 8");
                         retrieve_stack_value(get_register("r8"));
-                        auto* dest = dynamic_cast<symbol*>(top_emulation());
-                        if (!dest)
+                        auto* dest_s = dynamic_cast<symbol*>(top_emulation());
+                        auto* dest_r = dynamic_cast<reference_element*>(top_emulation());
+                        if (!dest_s && !dest_r)
                         {
-                            asc::err("destination for allocation must be a symbol");
+                            asc::err("destination for allocation must be a symbol or array element reference");
                             return STATE_SYNTAX_ERROR;
                         }
-                        if (dest->type->get_size() != 1)
-                            as.instruct(scope->name(), "imul r8, " + std::to_string(dest->type->get_size()));
+                        auto* type = dest_s ? dest_s->type : dest_r->type;
+                        int pointer = dest_s ? dest_s->pointer : dest_r->pointer;
+                        int offset = dest_s ? dest_s->offset : dest_r->offset;
+                        if (type->get_size() != 1 || pointer != 1)
+                            as.instruct(scope->name(), "imul r8, " + std::to_string(pointer > 1 ? 8 : type->get_size()));
                         as.external("HeapAlloc");
                         as.instruct(scope->name(), "call HeapAlloc");
-                        forget_top();
-                        as.instruct(scope->name(), "mov " + asc::relative_dereference("rbp",
-                            dest->offset) + ", rax");
+                        if (dest_s)
+                            forget_top();
+                        else
+                            retrieve_stack(get_register("rbx"));
+                        as.instruct(scope->name(), "mov " + (dest_s ? asc::relative_dereference("rbp",
+                            offset) : "[rbx]") + ", rax");
                         preserve_value(get_register("rax"));
                         (it = output.erase(it))--;
                     }
@@ -911,9 +918,14 @@ namespace asc
                     {
                         auto& index = retrieve_stack_value(get_register("rbx"));
                         symbol* isym = dynamic_cast<symbol*>(top_emulation());
+                        reference_element* ire = dynamic_cast<reference_element*>(top_emulation());
+                        auto ire_pointer = ire ? ire->pointer : -1;
+                        auto* ire_type = ire ? ire->type : nullptr;
                         auto& item = retrieve_stack_value(get_register("rax"));
-                        as.instruct(scope->name(), "lea rax, qword [rbx * " + std::to_string(isym->type->get_size()) + " + rax]");
-                        preserve_reference(get_register("rax"), isym->type->get_size());
+                        as.instruct(scope->name(), "lea rax, qword [rbx * " +
+                            std::to_string(isym ? (isym->pointer <= 1 ? isym->type->get_size() : 8) :
+                            (ire_pointer <= 1 ? ire_type->get_size() : 8)) + " + rax]");
+                        preserve_reference(get_register("rax"), isym ? isym->type : ire_type, isym ? isym->pointer - 1 : ire_pointer - 1);
                         (it = output.erase(it))--;
                     }
                 }
@@ -1275,15 +1287,16 @@ namespace asc
      * @brief Pushes a reference to the stack
      * 
      * @param location The location of a memory address
-     * @param size Size of the item at the reference
+     * @param type Type of the reference
+     * @param pointer Pointer level of type of the reference
      * @param scope Scope of the instructions
      * @return Position of the reference on the stack
      */
-    int parser::preserve_reference(storage_register& location, int size, symbol* scope)
+    int parser::preserve_reference(storage_register& location, type_symbol* type, int pointer, symbol* scope)
     {
         int position = (dpc += 8);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        reference_element* re = new reference_element(size, -position, location.is_fp_register());
+        reference_element* re = new reference_element(-position, location.is_fp_register(), type, pointer);
         re->dynamic = true;
         push_emulation(re);
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " +
@@ -1328,11 +1341,11 @@ namespace asc
         std::string src = re == nullptr ? ((sym != nullptr && sym->name_identified) ? sym->m_name :
                 asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, w)) :
                 asc::relative_dereference("rbp", re->offset, w);
-        bool full_deref = sym != nullptr && sym->name_identified && !sym->pointer;
+        bool full_deref = (sym != nullptr && sym->name_identified && !sym->pointer) || (re != nullptr && dest.is_fp_register());
         if (full_deref)
-            as.instruct(scope->name(), "mov rax, " + sym->m_name);
+            as.instruct(scope->name(), "mov rax, " + (sym != nullptr ? sym->m_name : asc::relative_dereference("rbp", re->offset)));
         as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :
-            (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : (fp_element ? std::string("s") + (lsize == 4 ? 's' : 'd') : "")))) +
+            (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : (fp_element || (re != nullptr && dest.is_fp_register()) ? std::string("s") + (lsize == 4 ? 's' : 'd') : "")))) +
             ' ' + dest.m_name + ", " + (full_deref ? w + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
@@ -1357,7 +1370,7 @@ namespace asc
         int rsize = re != nullptr ? re->get_size() : -1;
         bool dd = re != nullptr;
         auto& result = retrieve_stack(storage, cc, sx, use_passed_storage, size);
-        if (dd)
+        if (dd && !result.is_fp_register())
         {
             as.instruct(scope->name(), "mov" + std::string(re->fp ? (rsize == 8 ? "sd" : "ss") : "") + ' ' + result.byte_equivalent(rsize).m_name +
                 ", " + word(rsize) + " [" + result.byte_equivalent(8).m_name + ']');

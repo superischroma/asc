@@ -70,7 +70,7 @@ namespace asc
         // value management
         int preserve_value(storage_register& location, int size = -1, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
-        int preserve_reference(storage_register& location, int size, symbol* scope = nullptr);
+        int preserve_reference(storage_register& location, type_symbol* type, int pointer, symbol* scope = nullptr);
         int reserve_data_space(int size);
         storage_register& retrieve_stack(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
         storage_register& retrieve_stack_value(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
