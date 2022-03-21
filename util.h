@@ -22,6 +22,7 @@ namespace asc
     std::string escape_chars_regex(std::string&& str);
     std::string substring(std::string& str, int start, int end);
     std::string substring(std::string&& str, int start, int end);
+    std::string to_string(bool b);
 }
 
 #endif

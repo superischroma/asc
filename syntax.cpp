@@ -72,8 +72,8 @@ namespace asc
         { "->", { "->", 16, 2, LEFT_OPERATOR_ASSOCATION }},
 
         // suffix operators
-        { "[", { "[", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR }},
-        { "]", { "]", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR, true }},
+        { "[", { "[", 16, 2, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR }},
+        { "]", { "]", 16, 2, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR, true }},
         { "++1s", { "++", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR } },
         { "--1s", { "--", 16, 1, LEFT_OPERATOR_ASSOCATION, SUFFIX_OPERATOR } },
 

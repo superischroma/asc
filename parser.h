@@ -65,13 +65,15 @@ namespace asc
         // segments of evaluation
 
         // evaluate full type
-        evaluation_state eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& array);
+        evaluation_state eval_full_type(syntax_node*& lcurrent, type_symbol*& found, int& pointer);
 
         // value management
         int preserve_value(storage_register& location, int size = -1, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
+        int preserve_reference(storage_register& location, int size, symbol* scope = nullptr);
         int reserve_data_space(int size);
-        storage_register& retrieve_value(storage_register& storage, bool lea = false, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
+        storage_register& retrieve_stack(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
+        storage_register& retrieve_stack_value(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
         std::string top_location();
         void forget_top();
 
@@ -86,6 +88,9 @@ namespace asc
         symbol* get_current_function();
         symbol* floating_point_stack(int argc = 2);
         void init_heap();
+        stackable_element* push_emulation(stackable_element* se);
+        stackable_element* pop_emulation();
+        stackable_element* top_emulation();
 
         // type management
         type_symbol* get_type(std::string str);

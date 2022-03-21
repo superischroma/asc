@@ -142,4 +142,9 @@ namespace asc
     {
         return substring(str, start, end);
     }
+
+    std::string to_string(bool b)
+    {
+        return b ? "true" : "false";
+    }
 }

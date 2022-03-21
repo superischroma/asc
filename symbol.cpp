@@ -253,7 +253,7 @@ namespace asc
         return is_fp_register() ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
-    symbol::symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*& scope)
+    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
@@ -269,7 +269,7 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*&& scope):
+    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*&& scope):
         symbol(name, type, pointer, variant, vis, scope) {}
 
     std::string symbol::location()
@@ -290,9 +290,11 @@ namespace asc
 
     std::string symbol::to_string()
     {
-        return "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + (pointer ? "*" : "") + ", symbol_variant=" +
-            asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
-            ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
+        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
+        for (int i = 0; i < pointer; i++) str += '*';
+        str += ", symbol_variant=" + asc::symbol_variants::name(variant) + ", visibility=" +
+            visibilities::name(vis) + ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
+        return str;
     }
 
     int symbol::get_size()
@@ -315,13 +317,13 @@ namespace asc
         return this->m_name == rhs.m_name;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, int size, symbol*& scope):
+    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*& scope):
         symbol(name, type, pointer, variant, vis, scope)
     {
         this->size = size;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, int size, symbol*&& scope):
+    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*&& scope):
         type_symbol(name, type, pointer, variant, vis, size, scope) {}
     
     int type_symbol::get_size()
@@ -331,7 +333,9 @@ namespace asc
 
     std::string type_symbol::to_string()
     {
-        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_variant=" +
+        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
+        for (int i = 0; i < pointer; i++) s += '*';
+        s += ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) + ", size=" + std::to_string(size) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
         for (int i = 0; i < members.size(); i++)
@@ -355,7 +359,7 @@ namespace asc
             }) != STANDARD_TYPES.end();
     }
 
-    function_symbol::function_symbol(std::string name, type_symbol* type, bool pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
+    function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
         symbol(name, type, pointer, variant, vis, scope)
     {
         this->external_decl = external_decl;
@@ -363,14 +367,19 @@ namespace asc
 
     std::string function_symbol::to_string()
     {
-        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null") + ", symbol_type=" +
+        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
+        for (int i = 0; i < pointer; i++) str += '*';
+        str += ", symbol_type=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameters=[";
         for (int i = 0; i < parameters.size(); i++)
         {
             if (i != 0)
                 str += ", ";
-            str += parameters[i]->type->m_name + (parameters[i]->pointer ? "*" : "") + ' ' + parameters[i]->m_name;
+            str += parameters[i]->type->m_name;
+            for (int i = 0; i < parameters[i]->pointer; i++)
+                str += '*';
+            str += ' ' + parameters[i]->m_name;
         }
         str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
         str += '}';
@@ -382,20 +391,22 @@ namespace asc
         return !pointer ? type->size : 8;
     }
 
-    array_element::array_element(symbol* array, int index)
+    reference_element::reference_element(int size, int offset, bool fp)
     {
-        this->array = array;
-        this->index = index;
+        this->size = size;
+        this->offset = offset;
+        this->fp = fp;
     }
 
-    std::string array_element::to_string()
+    std::string reference_element::to_string()
     {
-        return "asc::array_element{array=" + (array != nullptr ? array->to_string() : "null") + ", index=" + std::to_string(index) + '}';
+        return "asc::reference_element{size=" + std::to_string(size) + ", offset=" + std::to_string(offset) + 
+            ", fp=" + asc::to_string(fp) + '}';
     }
 
-    int array_element::get_size()
+    int reference_element::get_size()
     {
-        return this->array->type->size;
+        return size;
     }
 
     std::string word(int size)

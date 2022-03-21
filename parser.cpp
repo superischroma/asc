@@ -8,6 +8,7 @@
 
 #define MAX_INT32 0x7FFFFFFF
 #define HEAP_PTR_IDENTIFIER "__HEAP_PTR"
+#define ASSUME_SIZE -1
 
 namespace asc
 {
@@ -66,7 +67,7 @@ namespace asc
         }
         int t_line = slcurrent->line;
         type_symbol* t = nullptr;
-        bool t_array;
+        int t_array;
         evaluation_state t_state = eval_full_type(slcurrent, t, t_array);
         if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
             return t_state;
@@ -106,7 +107,7 @@ namespace asc
                 break;
             int at_line = lcurrent->line;
             type_symbol* at = nullptr;
-            bool at_array;
+            int at_array;
             evaluation_state at_state = eval_full_type(lcurrent, at, at_array);
             if (at_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
@@ -431,7 +432,7 @@ namespace asc
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
         type_symbol* t;
-        bool t_array;
+        int t_array;
         auto t_state = eval_full_type(slcurrent, t, t_array);
         if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
             return t_state;
@@ -455,7 +456,7 @@ namespace asc
         if (scope != nullptr)
         {
             sym->offset = this->reserve_data_space(sym->get_size());
-            stack_emulation.push_back(sym);
+            push_emulation(sym);
         }
         else
             sym->name_identified = true;
@@ -770,10 +771,10 @@ namespace asc
                     if (oper.operands == 2)
                     {
                         symbol* fpl = floating_point_stack();
-                        auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
-                        auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
+                        auto& first = retrieve_stack_value(get_register(fpl ? "xmm5" : "rbx"));
+                        auto& second = retrieve_stack_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), "add" + (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
-                        preserve_value(second, fpl ? fpl->get_size() : -1);
+                        preserve_value(second, fpl ? fpl->get_size() : ASSUME_SIZE);
                         (it = output.erase(it))--;
                     }
                 }
@@ -783,10 +784,10 @@ namespace asc
                     if (oper.operands == 2)
                     {
                         symbol* fpl = floating_point_stack();
-                        auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
-                        auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
+                        auto& first = retrieve_stack_value(get_register(fpl ? "xmm5" : "rbx"));
+                        auto& second = retrieve_stack_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), "sub" + (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
-                        preserve_value(second, fpl ? fpl->get_size() : -1);
+                        preserve_value(second, fpl ? fpl->get_size() : ASSUME_SIZE);
                         (it = output.erase(it))--;
                     }
                 }
@@ -796,8 +797,8 @@ namespace asc
                     if (oper.operands == 2)
                     {
                         symbol* fpl = floating_point_stack();
-                        auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
-                        auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
+                        auto& first = retrieve_stack_value(get_register(fpl ? "xmm5" : "rbx"));
+                        auto& second = retrieve_stack_value(get_register(fpl ? "xmm4" : "rax"));
                         as.instruct(scope->name(), std::string(fpl == nullptr ? "i" : "") + "mul" +
                             (fpl != nullptr ? fpl->instruction_suffix() : "") + ' ' + second.m_name + ", " + first.m_name);
                         preserve_value(second, fpl ? fpl->get_size() : second.get_size());
@@ -815,8 +816,8 @@ namespace asc
                     if (oper.operands == 2)
                     {
                         symbol* fpl = floating_point_stack();
-                        auto& first = retrieve_value(get_register(fpl ? "xmm5" : "rbx"));
-                        auto& second = retrieve_value(get_register(fpl ? "xmm4" : "rax"));
+                        auto& first = retrieve_stack_value(get_register(fpl ? "xmm5" : "rbx"));
+                        auto& second = retrieve_stack_value(get_register(fpl ? "xmm4" : "rax"));
                         if (fpl)
                         {
                             as.instruct(scope->name(), "div" + fpl->instruction_suffix() + ' ' + second.m_name + ", " + first.m_name);
@@ -838,8 +839,8 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        auto& first = retrieve_value(get_register("rbx"));
-                        auto& second = retrieve_value(get_register("rax"));
+                        auto& first = retrieve_stack_value(get_register("rbx"));
+                        auto& second = retrieve_stack_value(get_register("rax"));
                         auto& d = get_register("rdx").byte_equivalent(second.get_size());
                         as.instruct(scope->name(), "xor " + d.m_name + ", " + d.m_name);
                         as.instruct(scope->name(), "idiv " + first.m_name);
@@ -856,7 +857,7 @@ namespace asc
                         int fz = 0;
                         if (!stack_emulation.empty())
                         {
-                            auto* t = stack_emulation.back();
+                            auto* t = top_emulation();
                             symbol* s = dynamic_cast<symbol*>(t);
                             fp_register* fp_reg = dynamic_cast<fp_register*>(t);
                             if (s != nullptr && s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
@@ -864,11 +865,15 @@ namespace asc
                             else if (fp_reg != nullptr)
                                 fz = fp_reg->effective_sizes.top();
                         }
-                        auto& src = retrieve_value(get_register(fz ? "xmm4" : "rax"));
-                        forget_top();
+                        auto& src = retrieve_stack_value(get_register(fz ? "xmm4" : "rax"));
+                        reference_element* re = dynamic_cast<reference_element*>(top_emulation());
+                        if (re != nullptr)
+                            retrieve_stack(get_register("rbx"));
+                        else
+                            forget_top();
                         as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "")
-                            + ' ' + asc::relative_dereference("rbp",
-                            dynamic_cast<symbol*>(stack_emulation.back())->offset) + ", " + src.m_name);
+                            + ' ' + (re != nullptr ? re->word() + " [rbx]" :
+                            relative_dereference("rbp", dynamic_cast<symbol*>(top_emulation())->offset, src.word())) + ", " + src.m_name);
                         preserve_value(src, fz ? fz : -1);
                         (it = output.erase(it))--;
                     }
@@ -881,8 +886,8 @@ namespace asc
                         init_heap();
                         as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
                         as.instruct(scope->name(), "mov rdx, 8");
-                        retrieve_value(get_register("r8"));
-                        auto* dest = dynamic_cast<symbol*>(stack_emulation.back());
+                        retrieve_stack_value(get_register("r8"));
+                        auto* dest = dynamic_cast<symbol*>(top_emulation());
                         if (!dest)
                         {
                             asc::err("destination for allocation must be a symbol");
@@ -904,11 +909,11 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        auto& index = retrieve_value(get_register("rbx"));
-                        symbol* isym = dynamic_cast<symbol*>(stack_emulation.back());
-                        auto& item = retrieve_value(get_register("rax"));
+                        auto& index = retrieve_stack_value(get_register("rbx"));
+                        symbol* isym = dynamic_cast<symbol*>(top_emulation());
+                        auto& item = retrieve_stack_value(get_register("rax"));
                         as.instruct(scope->name(), "lea rax, qword [rbx * " + std::to_string(isym->type->get_size()) + " + rax]");
-                        preserve_value(get_register("rax"));
+                        preserve_reference(get_register("rax"), isym->type->get_size());
                         (it = output.erase(it))--;
                     }
                 }
@@ -917,7 +922,7 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        type_symbol* dest_type = dynamic_cast<type_symbol*>(stack_emulation.back());
+                        type_symbol* dest_type = dynamic_cast<type_symbol*>(top_emulation());
                         if (dest_type == nullptr)
                         {
                             asc::err("expected a type on right hand side of casting operator");
@@ -928,10 +933,10 @@ namespace asc
                             asc::err("casting to object types is not allowed yet");
                             return STATE_SYNTAX_ERROR;
                         }
-                        stack_emulation.pop_back();
+                        pop_emulation();
                         bool is_double = dest_type->m_name == "double";
                         bool fp_dest = dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
-                        stackable_element* convertee = stack_emulation.back();
+                        stackable_element* convertee = top_emulation();
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
                         storage_register* reg = dynamic_cast<storage_register*>(convertee);
                         symbol* sym = dynamic_cast<symbol*>(convertee);
@@ -942,8 +947,9 @@ namespace asc
                         if (il != nullptr || (sym != nullptr && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE) || (reg != nullptr && !reg->is_fp_register()))
                         {
                             // retrieve value with sign extension if necessary
-                            temp_dest = &(retrieve_value(get_register("rax").byte_equivalent(fp_dest ? 8 : dest_type->get_size()), // integral -> integral
-                                false, false, dest_type->get_size() > (il ? il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
+                            temp_dest = &(retrieve_stack_value(get_register("rax").byte_equivalent(fp_dest ? // integral -> integral
+                                8 : dest_type->get_size()), false, dest_type->get_size() > (il ?
+                                il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
                             if (fp_dest) // integral -> float/double
                             {
                                 // being converted to floating point
@@ -965,7 +971,7 @@ namespace asc
                                     size = sym->get_size();
                                 }
                                 else
-                                    loc = &(retrieve_value(get_register("xmm5"), false, false, false, false, &size));
+                                    loc = &(retrieve_stack_value(get_register("xmm5"), false, false, false, &size));
                                 if ((size == 8 && is_double) || (size != 8 && !is_double))
                                 {
                                     as.instruct(scope->name(), std::string("movs") + (size == 8 ? 'd' : 's') +
@@ -983,7 +989,7 @@ namespace asc
                             {
                                 temp_dest = &(get_register("rax"));
                                 int size;
-                                retrieve_value(get_register("xmm4"), false, false, false, false, &size);
+                                retrieve_stack_value(get_register("xmm4"), false, false, false, &size);
                                 as.instruct(scope->name(), std::string("cvtts") + (size == 8 ? 'd' : 's') +
                                     "2si rax, xmm4");
                                 temp_dest = &(temp_dest->byte_equivalent(dest_type->get_size()));
@@ -1004,12 +1010,11 @@ namespace asc
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling: " + f_sym->to_string());
                 for (int i = 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
-                    retrieve_value(get_register(f_sym->parameters[i]->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
-                        FP_ARG_REGISTER_SEQUENCE[i] : ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()), false, true);
+                    retrieve_stack_value(get_register(f_sym->parameters[i]->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? FP_ARG_REGISTER_SEQUENCE[i] : ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()), true);
                 int s_arg_count = f_sym->parameters.size() - 4;
                 for (int i = 0, h = 0; i < s_arg_count; i++)
                 {
-                    int top_size = stack_emulation.back()->get_size();
+                    int top_size = top_emulation()->get_size();
                     auto& transfer = get_register("rax").byte_equivalent(top_size);
                     as.instruct(scope->name(), "mov " + transfer.m_name + ", " + top_location());
                     forget_top();
@@ -1025,7 +1030,7 @@ namespace asc
             else if (sym != nullptr) // variable
             {
                 if (dynamic_cast<type_symbol*>(sym) != nullptr) // if it's a type symbol
-                    stack_emulation.push_back(sym);
+                    push_emulation(sym);
                 else
                     preserve_symbol(sym);
                 (it = output.erase(it))--;
@@ -1045,7 +1050,7 @@ namespace asc
                 as.instruct(scope->name(), "mov dword " + asc::relative_dereference("rbp", reserve_data_space(4)) + ", " + *token); // temporary
                 integral_literal* il = new integral_literal(4);
                 il->dynamic = true; 
-                stack_emulation.push_back(il);
+                push_emulation(il);
                 (it = output.erase(it))--;
             }
             else if (is_number_literal(*token)) // floating point constants
@@ -1092,7 +1097,8 @@ namespace asc
         auto exp = eval_expression(lcurrent = lcurrent->next);
         if (exp != STATE_FOUND)
             return exp;
-        retrieve_value(get_register(get_current_function()->type->variant != symbol_variants::FLOATING_POINT_PRIMITIVE ? "rax" : "xmm0"));
+        retrieve_stack_value(get_register(get_current_function()->type->variant !=
+            symbol_variants::FLOATING_POINT_PRIMITIVE ? "rax" : "xmm0"));
         return STATE_FOUND;
     }
 
@@ -1143,7 +1149,7 @@ namespace asc
         {
             int t_line = lcurrent->line;
             type_symbol* t;
-            bool t_array;
+            int t_array;
             evaluation_state t_state = eval_full_type(lcurrent, t, t_array);
             if (t_state == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
@@ -1183,7 +1189,7 @@ namespace asc
         return eval_type_construct(current);
     }
 
-    evaluation_state parser::eval_full_type(syntax_node*& lcurrent, type_symbol*& found, bool& pointer)
+    evaluation_state parser::eval_full_type(syntax_node*& lcurrent, type_symbol*& found, int& pointer)
     {
         syntax_node* slcurrent = lcurrent;
         if (check_eof(slcurrent, true))
@@ -1214,15 +1220,15 @@ namespace asc
         }
         found = dynamic_cast<type_symbol*>(type);
         slcurrent = slcurrent->next;
-        pointer = false;
+        pointer = 0;
         if (!check_eof(slcurrent, true) && *slcurrent == "[")
         {
             asc::err("obsolete type, use pointers instead", slcurrent->line);
             return STATE_SYNTAX_ERROR;
         }
-        if (!check_eof(slcurrent, true) && *slcurrent == "*")
+        while (!check_eof(slcurrent, true) && *slcurrent == "*")
         {
-            pointer = true;
+            pointer++;
             slcurrent = slcurrent->next;
         }
         lcurrent = slcurrent;
@@ -1241,20 +1247,47 @@ namespace asc
         }
         int position = (dpc += size);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        stack_emulation.push_back(&location);
+        push_emulation(&location);
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" +
             (fpr ? std::string("s") + (size == 4 ? 's' : 'd') : "") + ' ' + asc::relative_dereference("rbp", -position, asc::word(size)) + ", " + location.m_name);
         return -position;
     }
 
+    /**
+     * @brief Pushes a symbol onto the stack
+     * 
+     * @param sym The symbol to push
+     * @param scope Scope of the instructions
+     * @return Position of the symbol on the stack
+     */
     int parser::preserve_symbol(symbol* sym, symbol* scope)
     {
-        int position = (dpc += sym->get_size());
+        int position = (dpc += 8);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        stack_emulation.push_back(sym);
+        push_emulation(sym);
         storage_register& transfer_register = get_register("rax").byte_equivalent(sym->get_size());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position, sym->word()) + ", " + transfer_register.m_name);
+        return -position;
+    }
+
+    /**
+     * @brief Pushes a reference to the stack
+     * 
+     * @param location The location of a memory address
+     * @param size Size of the item at the reference
+     * @param scope Scope of the instructions
+     * @return Position of the reference on the stack
+     */
+    int parser::preserve_reference(storage_register& location, int size, symbol* scope)
+    {
+        int position = (dpc += 8);
+        if (dpc > dpm) dpm = dpc; // update max if needed
+        reference_element* re = new reference_element(size, -position, location.is_fp_register());
+        re->dynamic = true;
+        push_emulation(re);
+        as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " +
+            asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
         return -position;
     }
 
@@ -1268,50 +1301,68 @@ namespace asc
      * @brief Takes a value off of the stack in emulation and output and stores it in the storage argument
      * 
      * @param storage The location to store the value in output
-     * @param lea Whether the memory address should be stored rather than the value
      * @param cc Whether this function call might need to follow x64 calling convention rules
      * @param sx Whether the value should be sign extended once it is retrieved
      * @param use_passed_storage Whether it should not check for a proper storage register extension and use the one provided by the callee
      * @param size Reference to a variable which stores the size the register used
      * @return storage_register& The actual register it was stored in if the function chose an larger or smaller extension register
      */
-    storage_register& parser::retrieve_value(storage_register& storage, bool lea, bool cc, bool sx, bool use_passed_storage, int* size)
+    storage_register& parser::retrieve_stack(storage_register& storage, bool cc, bool sx, bool use_passed_storage, int* size)
     {
-        stackable_element* element = stack_emulation.back();
+        stackable_element* element = top_emulation();
         symbol* sym = dynamic_cast<symbol*>(element);
+        reference_element* re = dynamic_cast<reference_element*>(element);
         fp_register* fp_element = dynamic_cast<fp_register*>(element);
-        int lsize = !sx && !use_passed_storage && fp_element ? fp_element->effective_sizes.top() : element->get_size();
+        int lsize = re != nullptr ? 8 : !sx && !use_passed_storage && fp_element ? fp_element->effective_sizes.top() : element->get_size();
         storage_register& dest = sx || use_passed_storage ? storage : storage.byte_equivalent(lsize);
         std::string w = fp_element ? word(fp_element->effective_sizes.top()) : element->word();
         if (compare(w, dest.word()) > 0)
             w = dest.word();
+        if (re != nullptr)
+            w = "qword";
         if (!sx && !use_passed_storage && fp_element)
             fp_element->effective_sizes.pop();
         storage_register& dest64 = dest.byte_equivalent(8);
         if (dest.get_size() != 8 && !dest.is_fp_register())
             as.instruct(scope->name(), "xor " + dest64.m_name + ", " + dest64.m_name);
-        std::string src = (sym != nullptr && sym->name_identified) ? sym->m_name :
-                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, w);
-        bool dereference_needed = sym != nullptr && sym->name_identified && !sym->pointer;
-        if (dereference_needed)
+        std::string src = re == nullptr ? ((sym != nullptr && sym->name_identified) ? sym->m_name :
+                asc::relative_dereference("rbp", sym != nullptr ? sym->offset : -dpc, w)) :
+                asc::relative_dereference("rbp", re->offset, w);
+        bool full_deref = sym != nullptr && sym->name_identified && !sym->pointer;
+        if (full_deref)
             as.instruct(scope->name(), "mov rax, " + sym->m_name);
         as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :
             (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : (fp_element ? std::string("s") + (lsize == 4 ? 's' : 'd') : "")))) +
-            ' ' + dest.m_name + ", " + (dereference_needed ? w + " [rax]" : src));
+            ' ' + dest.m_name + ", " + (full_deref ? w + " [rax]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {
             as.instruct(scope->name(), std::string("mov") + ' ' +
                 get_register(ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)]).byte_equivalent(lsize).m_name +
-                ", " + (dereference_needed ? w + " [rax]" : src));
+                ", " + (full_deref ? w + " [rax]" : src));
         }
         dpc -= lsize;
         if (element->dynamic)
             delete element;
-        stack_emulation.pop_back();
+        pop_emulation();
         if (size != nullptr)
             *size = lsize;
         return dest;
+    }
+
+    storage_register& parser::retrieve_stack_value(storage_register& storage, bool cc, bool sx, bool use_passed_storage, int* size)
+    {
+        auto* element = top_emulation();
+        auto* re = dynamic_cast<reference_element*>(element);
+        int rsize = re != nullptr ? re->get_size() : -1;
+        bool dd = re != nullptr;
+        auto& result = retrieve_stack(storage, cc, sx, use_passed_storage, size);
+        if (dd)
+        {
+            as.instruct(scope->name(), "mov" + std::string(re->fp ? (rsize == 8 ? "sd" : "ss") : "") + ' ' + result.byte_equivalent(rsize).m_name +
+                ", " + word(rsize) + " [" + result.byte_equivalent(8).m_name + ']');
+        }
+        return result;
     }
 
     std::string parser::top_location()
@@ -1321,11 +1372,11 @@ namespace asc
 
     void parser::forget_top()
     {
-        stackable_element* element = stack_emulation.back();
+        stackable_element* element = top_emulation();
         dpc -= element->get_size();
         if (element->dynamic)
             delete element;
-        stack_emulation.pop_back();
+        pop_emulation();
     }
 
     bool parser::symbol_table_has(std::string name, symbol* scope)
@@ -1460,6 +1511,28 @@ namespace asc
         as.instruct(scope->name(), "call GetProcessHeap");
         as.instruct(scope->name(), std::string("mov qword [") + HEAP_PTR_IDENTIFIER + "], rax");
         heap = true;
+    }
+
+    stackable_element* parser::push_emulation(stackable_element* se)
+    {
+        stack_emulation.push_back(se);
+        return se;
+    }
+
+    stackable_element* parser::pop_emulation()
+    {
+        if (stack_emulation.empty())
+            return nullptr;
+        auto* element = stack_emulation.back();
+        stack_emulation.pop_back();
+        return element;
+    }
+
+    stackable_element* parser::top_emulation()
+    {
+        if (stack_emulation.empty())
+            return nullptr;
+        return stack_emulation.back();
     }
 
     type_symbol* parser::get_type(std::string str)
