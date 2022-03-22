@@ -327,7 +327,7 @@ namespace asc
             }
             ++it;
         }
-        if (scope->variant == symbol_variants::FUNCTION) // if we're scoping out of a function
+        if (scope->variant == symbol_variants::FUNCTION || scope->variant == symbol_variants::CONSTRUCTOR_FUNCTION) // if we're scoping out of a function
         {
             asc::debug("updating preserved for " + scope->m_name + ": " + std::to_string(dpm));
             as.sr(scope->m_name)->preserved_data = dpm; // set the max
@@ -540,8 +540,24 @@ namespace asc
             else if (lcurrent->next != nullptr && *(lcurrent->next) == "(")
             {
                 call_indices.push(0);
-                functions.push(dynamic_cast<function_symbol*>(symbol_table_get(*(lcurrent->value))));
-                operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
+                auto* sym = symbol_table_get(*(lcurrent->value));
+                auto* f_sym = dynamic_cast<function_symbol*>(sym);
+                auto* t_sym = dynamic_cast<type_symbol*>(sym);
+                if (t_sym)
+                {
+                    f_sym = dynamic_cast<function_symbol*>(symbol_table_get("_C" + t_sym->m_name));
+                    if (!f_sym)
+                    {
+                        f_sym = dynamic_cast<function_symbol*>(symbol_table_insert("_C" + t_sym->m_name,
+                            new function_symbol("_C" + t_sym->m_name, t_sym, 1, symbol_variants::CONSTRUCTOR_FUNCTION,
+                            t_sym->vis, t_sym->scope, false)));
+                        for (auto* member : t_sym->members)
+                            f_sym->parameters.push_back(member);
+                        asc::debug("created implicit constructor for " + t_sym->m_name + ": " + f_sym->to_string());
+                    }
+                }
+                functions.push(f_sym);
+                operators.push({ f_sym->m_name, 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
                 call_start = true;
             }
             else if (*(lcurrent) == "(")
@@ -617,7 +633,8 @@ namespace asc
         for (auto it = output.begin(); it != output.end(); it++)
         {
             symbol* sym = symbol_table_get(it->value);
-            if (sym != nullptr && sym->variant == symbol_variants::FUNCTION)
+            if (sym != nullptr && (sym->variant == symbol_variants::FUNCTION ||
+                sym->variant == symbol_variants::CONSTRUCTOR_FUNCTION))
             {
                 auto call = it--;
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
@@ -930,6 +947,15 @@ namespace asc
                         (it = output.erase(it))--;
                     }
                 }
+                // dot operator
+                if (oper.value == ".")
+                {
+                    if (oper.operands == 2)
+                    {
+                        asc::err("dot operator for member access has not been supported yet");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                }
                 // casting operator
                 if (oper.value == "=>")
                 {
@@ -1038,6 +1064,33 @@ namespace asc
                 as.instruct(scope->name(), "call " + f_sym->m_name);
                 if (f_sym->get_size() != 0)
                     preserve_value(get_register(f_sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size()), f_sym->get_size()); // preserve the return value
+                (it = output.erase(it))--;
+            }
+            else if (sym != nullptr && sym->variant == symbol_variants::CONSTRUCTOR_FUNCTION)
+            {
+                auto* f_sym = dynamic_cast<function_symbol*>(sym);
+                asc::debug("calling implicit type constructor: " + f_sym->to_string());
+                auto* t_sym = dynamic_cast<type_symbol*>(symbol_table_get(f_sym->m_name.substr(2)));
+                if (!t_sym)
+                {
+                    asc::err("could not find type associated with implicit constructor (somehow..)");
+                    return STATE_SYNTAX_ERROR;
+                }
+                init_heap();
+                as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
+                as.instruct(scope->name(), "mov rdx, 8");
+                as.instruct(scope->name(), "mov r8, " + std::to_string(t_sym->calc_size()));
+                as.external("HeapAlloc");
+                as.instruct(scope->name(), "call HeapAlloc");
+                int type_offset = 0;
+                for (auto* member : t_sym->members)
+                {
+                    auto& meml = retrieve_stack_value(get_register("rbx"));
+                    as.instruct(scope->name(), "mov " + relative_dereference("rax", type_offset, meml.word())
+                        + ", " + meml.m_name);
+                    type_offset += meml.get_size();
+                }
+                preserve_value(get_register("rax"));
                 (it = output.erase(it))--;
             }
             else if (sym != nullptr) // variable
@@ -1527,7 +1580,8 @@ namespace asc
     symbol* parser::get_current_function()
     {
         symbol* current = this->scope;
-        for (; current != nullptr && current->variant != symbol_variants::FUNCTION; current = current->scope);
+        for (; current != nullptr && (current->variant != symbol_variants::FUNCTION ||
+            current->variant == symbol_variants::CONSTRUCTOR_FUNCTION); current = current->scope);
         return current;
     }
 

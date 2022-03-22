@@ -359,6 +359,14 @@ namespace asc
             }) != STANDARD_TYPES.end();
     }
 
+    // Calculates the full internal size of the type
+    int type_symbol::calc_size()
+    {
+        int sz = 0;
+        for (auto* member : this->members) sz += member->get_size();
+        return sz;
+    }
+
     function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
         symbol(name, type, pointer, variant, vis, scope)
     {
@@ -367,7 +375,7 @@ namespace asc
 
     std::string function_symbol::to_string()
     {
-        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
+        std::string str = "asc::function_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
         for (int i = 0; i < pointer; i++) str += '*';
         str += ", symbol_type=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +

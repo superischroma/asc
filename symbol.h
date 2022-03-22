@@ -28,6 +28,7 @@ namespace asc
         const symbol_variant INTEGRAL_PRIMITIVE = 0x0B;
         const symbol_variant UNSIGNED_INTEGRAL_PRIMITIVE = 0x0C;
         const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0D;
+        const symbol_variant CONSTRUCTOR_FUNCTION = 0x0E;
 
         std::string name(symbol_variant st);
     }
@@ -120,6 +121,7 @@ namespace asc
         std::string to_string() override;
         int get_size() override;
         bool is_primitive();
+        int calc_size();
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;

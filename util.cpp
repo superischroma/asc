@@ -104,9 +104,14 @@ namespace asc
     std::string relative_dereference(std::string& relative_to, int offset, std::string word)
     {
         std::string result = word.empty() ? "" : word + ' ';
-        result += '[' + relative_to + ' ';
-        result += (offset < 0 ? '-' : '+');
-        result += (' ' + std::to_string(std::abs(offset)) + ']');
+        result += '[' + relative_to;
+        if (offset != 0)
+        {
+            result += ' ';
+            result += (offset < 0 ? '-' : '+');
+            result += ' ' + std::to_string(std::abs(offset));
+        }
+        result += ']';
         return result;
     }
 
