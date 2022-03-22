@@ -380,7 +380,7 @@ public mathematical int addition(int x, int y)
 #       ARRAYS      #
 #####################
 
-use int printf(char[], double);
+use int printf(char*, double);
 
 public int arrayTest()
 {

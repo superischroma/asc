@@ -47,8 +47,8 @@
 		"strings": {
 			"patterns": [
 				{
-					"name": "constant.character.escape.asharp",
-					"match": "\\\""
+					"name": "constant.character.escape",
+					"match": "\\\\"
 				},
 				{
 					"name": "string.quoted.double.asharp",
