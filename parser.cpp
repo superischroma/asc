@@ -952,8 +952,24 @@ namespace asc
                 {
                     if (oper.operands == 2)
                     {
-                        asc::err("dot operator for member access has not been supported yet");
-                        return STATE_SYNTAX_ERROR;
+                        symbol* member = dynamic_cast<symbol*>(top_emulation());
+                        if (member == nullptr)
+                        {
+                            asc::err("expected a member on right hand side of dot operator");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        pop_emulation();
+                        symbol* obj = dynamic_cast<symbol*>(top_emulation());
+                        if (obj == nullptr)
+                        {
+                            asc::err("expected a symbol on left hand side of dot operator");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        type_symbol* obj_type = obj->type;
+                        auto& loc = retrieve_stack(get_register("rax"));
+                        as.instruct(scope->name(), "lea rax, " + relative_dereference("rax", obj_type->calc_member_offset(member)));
+                        preserve_reference(loc, member->type, member->pointer);
+                        (it = output.erase(it))--;
                     }
                 }
                 // casting operator
@@ -1135,8 +1151,22 @@ namespace asc
             }
             else
             {
-                asc::err("invalid token encountered while parsing expression");
-                return STATE_SYNTAX_ERROR;
+                auto* t = dynamic_cast<symbol*>(top_emulation());
+                if (t)
+                {
+                    auto it_mem = std::find_if(t->type->members.begin(), t->type->members.end(),
+                        [token](symbol* member) -> bool { return member->m_name == *token; });
+                    if (it_mem != t->type->members.end())
+                    {
+                        push_emulation(*it_mem);
+                        (it = output.erase(it))--;
+                    }
+                }
+                else
+                {
+                    asc::err("invalid token encountered while parsing expression");
+                    return STATE_SYNTAX_ERROR;
+                }
             }
         }
 
@@ -1263,7 +1293,7 @@ namespace asc
             symbol* member_symbol = new symbol(identifier, t, t_array, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
                 visibilities::PUBLIC, static_cast<symbol*>(sym));
             sym->members.push_back(member_symbol);
-            symbol_table_insert(identifier, member_symbol);
+            //symbol_table_insert(identifier, member_symbol);
             overall_size += t->get_size();
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
             if (lcurrent == nullptr)

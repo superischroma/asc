@@ -122,6 +122,7 @@ namespace asc
         int get_size() override;
         bool is_primitive();
         int calc_size();
+        int calc_member_offset(symbol* member);
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;

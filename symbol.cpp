@@ -367,6 +367,19 @@ namespace asc
         return sz;
     }
 
+    // Calculates the memory offset of a type member from a pointer
+    int type_symbol::calc_member_offset(symbol* member)
+    {
+        int off = 0;
+        for (auto* m : this->members)
+        {
+            if (m == member)
+                break;
+            off += m->get_size();
+        }
+        return off;
+    }
+
     function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
         symbol(name, type, pointer, variant, vis, scope)
     {
