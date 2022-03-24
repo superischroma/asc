@@ -42,7 +42,7 @@ namespace asc
     public:
         virtual std::string to_string() = 0;
         virtual int get_size() = 0;
-        std::string word();
+        virtual std::string word();
     };
 
     class integral_literal: public stackable_element
@@ -77,6 +77,7 @@ namespace asc
         fp_register(std::string name, int size);
 
         std::string to_string() override;
+        std::string word() override;
     };
 
     extern std::map<std::string, std::shared_ptr<asc::storage_register>> STANDARD_REGISTERS;

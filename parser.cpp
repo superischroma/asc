@@ -777,6 +777,17 @@ namespace asc
 
         for (auto it = output.begin(); it != output.end(); it++)
         {
+            {
+                std::string db = "-- current expression parse iteration --\n - expression: ";
+                for (auto& it : output)
+                    //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
+                    db += it.value + ' ';
+                db += "\n - stack emulation: ";
+                for (auto& element : stack_emulation)
+                    db += element->to_string() + ' ';
+                db += "\n - stack height: " + std::to_string(dpc);
+                asc::debug(db);
+            }
             auto* element = &*it;
             std::string* token = &(element->value);
             symbol* sym = symbol_table_get(*token);
@@ -877,21 +888,25 @@ namespace asc
                         {
                             auto* t = top_emulation();
                             symbol* s = dynamic_cast<symbol*>(t);
+                            reference_element* rdest = dynamic_cast<reference_element*>(t);
                             fp_register* fp_reg = dynamic_cast<fp_register*>(t);
                             if (s != nullptr && s->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE)
                                 fz = s->get_size();
                             else if (fp_reg != nullptr)
                                 fz = fp_reg->effective_sizes.top();
+                            else if (rdest && rdest->fp && !rdest->pointer)
+                                fz = rdest->get_size();
                         }
                         auto& src = retrieve_stack_value(get_register(fz ? "xmm4" : "rax"));
-                        reference_element* re = dynamic_cast<reference_element*>(top_emulation());
-                        if (re != nullptr)
+                        reference_element* re_dest = dynamic_cast<reference_element*>(top_emulation());
+                        symbol* s_dest = dynamic_cast<symbol*>(top_emulation());
+                        if (re_dest)
                             retrieve_stack(get_register("rbx"));
                         else
                             forget_top();
                         as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "")
-                            + ' ' + (re != nullptr ? re->word() + " [rbx]" :
-                            relative_dereference("rbp", dynamic_cast<symbol*>(top_emulation())->offset, src.word())) + ", " + src.m_name);
+                            + ' ' + (re_dest ? re_dest->word() + " [rbx]" :
+                            relative_dereference("rbp", s_dest->offset, s_dest->word())) + ", " + src.m_name);
                         preserve_value(src, fz ? fz : -1);
                         (it = output.erase(it))--;
                     }
@@ -994,17 +1009,19 @@ namespace asc
                         stackable_element* convertee = top_emulation();
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
                         storage_register* reg = dynamic_cast<storage_register*>(convertee);
+                        reference_element* re_el = dynamic_cast<reference_element*>(convertee);
                         symbol* sym = dynamic_cast<symbol*>(convertee);
                         storage_register* temp_dest = nullptr;
 
                         asc::debug("casting candidate: " + convertee->to_string() + ", to: " + dest_type->to_string());
 
-                        if (il != nullptr || (sym != nullptr && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE) || (reg != nullptr && !reg->is_fp_register()))
+                        if (il || (sym && sym->type->variant == symbol_variants::INTEGRAL_PRIMITIVE) ||
+                            (reg && !reg->is_fp_register()) || (re_el && !re_el->fp))
                         {
                             // retrieve value with sign extension if necessary
                             temp_dest = &(retrieve_stack_value(get_register("rax").byte_equivalent(fp_dest ? // integral -> integral
                                 8 : dest_type->get_size()), false, dest_type->get_size() > (il ?
-                                il->get_size() : (reg ? reg->get_size() : sym->get_size())), true));
+                                il->get_size() : (reg ? reg->get_size() : (re_el ? re_el->get_size() : sym->get_size()))), true));
                             if (fp_dest) // integral -> float/double
                             {
                                 // being converted to floating point
@@ -1013,32 +1030,43 @@ namespace asc
                                     + " xmm4, rax");
                             }
                         }
-                        else if ((sym != nullptr && sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) || (reg != nullptr && reg->is_fp_register()))
+                        else if ((sym && sym->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE) ||
+                            (reg && reg->is_fp_register()) || (re_el && re_el->fp))
                         {
                             if (fp_dest) // float/double -> double/float
                             {
                                 temp_dest = &(get_register("xmm4"));
                                 int size;
                                 storage_register* loc = nullptr;
-                                if (sym != nullptr && sym->name_identified)
+                                bool forg = false;
+                                if (sym && sym->name_identified)
                                 {
                                     as.instruct(scope->name(), "mov rax, " + sym->location());
                                     size = sym->get_size();
+                                    forg = true;
+                                }
+                                else if (re_el)
+                                {
+                                    as.instruct(scope->name(), "mov rax, " + relative_dereference("rbp", re_el->offset));
+                                    size = re_el->get_size();
+                                    forg = true;
                                 }
                                 else
                                     loc = &(retrieve_stack_value(get_register("xmm5"), false, false, false, &size));
                                 if ((size == 8 && is_double) || (size != 8 && !is_double))
                                 {
                                     as.instruct(scope->name(), std::string("movs") + (size == 8 ? 'd' : 's') +
-                                        ' ' + temp_dest->m_name + ", " + (sym != nullptr ? 
-                                        (sym->name_identified ? sym->word() + " [rax]" : sym->location()) : loc->m_name));
+                                        ' ' + temp_dest->m_name + ", " + (re_el != nullptr ? re_el->word() + " [rax]" : (sym != nullptr ? 
+                                        (sym->name_identified ? sym->word() + " [rax]" : sym->location()) : loc->m_name)));
                                 }
                                 else
                                 {
                                     as.instruct(scope->name(), std::string("cvts") + (size == 8 ? 'd' : 's') +
                                         "2s" + (is_double ? 'd' : 's') + ' ' + temp_dest->m_name + ", " +
-                                        (sym != nullptr ? (sym->name_identified ? sym->word() + " [rax]" : sym->location()) : loc->m_name));
+                                        (re_el != nullptr ? re_el->word() + " [rax]" : (sym != nullptr ? (sym->name_identified ?
+                                        sym->word() + " [rax]" : sym->location()) : loc->m_name)));
                                 }
+                                if (forg) forget_top();
                             }
                             else // float/double -> integral
                             {
@@ -1065,7 +1093,12 @@ namespace asc
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling: " + f_sym->to_string());
                 for (int i = 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
-                    retrieve_stack_value(get_register(f_sym->parameters[i]->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? FP_ARG_REGISTER_SEQUENCE[i] : ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()), true);
+                {
+                    asc::debug("passing " + top_emulation()->to_string() + " to function " + f_sym->m_name);
+                    retrieve_stack_value(get_register(f_sym->parameters[i]->type->variant ==
+                        symbol_variants::FLOATING_POINT_PRIMITIVE ? FP_ARG_REGISTER_SEQUENCE[i] :
+                        ARG_REGISTER_SEQUENCE[i]).byte_equivalent(f_sym->parameters[i]->get_size()), true);
+                }
                 int s_arg_count = f_sym->parameters.size() - 4;
                 for (int i = 0, h = 0; i < s_arg_count; i++)
                 {
@@ -1374,6 +1407,7 @@ namespace asc
         push_emulation(&location);
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov" +
             (fpr ? std::string("s") + (size == 4 ? 's' : 'd') : "") + ' ' + asc::relative_dereference("rbp", -position, asc::word(size)) + ", " + location.m_name);
+        asc::debug("preserved " + location.to_string() + ", stack size now " + std::to_string(dpc));
         return -position;
     }
 
@@ -1386,12 +1420,13 @@ namespace asc
      */
     int parser::preserve_symbol(symbol* sym, symbol* scope)
     {
-        int position = (dpc += 8);
+        int position = (dpc += sym->get_size());
         if (dpc > dpm) dpm = dpc; // update max if needed
         push_emulation(sym);
-        storage_register& transfer_register = get_register("rax").byte_equivalent(sym->get_size());
+        storage_register& transfer_register = get_register("r12").byte_equivalent(sym->get_size());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + transfer_register.m_name + ", " + sym->location());
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " + asc::relative_dereference("rbp", -position, sym->word()) + ", " + transfer_register.m_name);
+        asc::debug("preserved " + sym->to_string() + ", stack size now " + std::to_string(dpc));
         return -position;
     }
 
@@ -1408,11 +1443,12 @@ namespace asc
     {
         int position = (dpc += 8);
         if (dpc > dpm) dpm = dpc; // update max if needed
-        reference_element* re = new reference_element(-position, location.is_fp_register(), type, pointer);
+        reference_element* re = new reference_element(-position, type->is_floating_point(), type, pointer);
         re->dynamic = true;
         push_emulation(re);
         as.instruct(scope != nullptr ? scope->name() : this->scope->name(), "mov " +
             asc::relative_dereference("rbp", -position, location.word()) + ", " + location.m_name);
+        asc::debug("preserved reference to mem addr in " + location.to_string() + ", stack size now " + std::to_string(dpc));
         return -position;
     }
 
@@ -1423,7 +1459,8 @@ namespace asc
         return -position;
     }
     /**
-     * @brief Takes a value off of the stack in emulation and output and stores it in the storage argument
+     * @brief Takes a value off of the stack in emulation and output and stores it in the storage argument.
+     * Register r12 may be modified in order to dereference values and such.
      * 
      * @param storage The location to store the value in output
      * @param cc Whether this function call might need to follow x64 calling convention rules
@@ -1455,18 +1492,19 @@ namespace asc
                 asc::relative_dereference("rbp", re->offset, w);
         bool full_deref = (sym != nullptr && sym->name_identified && !sym->pointer) || (re != nullptr && dest.is_fp_register());
         if (full_deref)
-            as.instruct(scope->name(), "mov rax, " + (sym != nullptr ? sym->m_name : asc::relative_dereference("rbp", re->offset)));
-        as.instruct(scope->name(), std::string("mov" + (sx ? "sx" :
+            as.instruct(scope->name(), "mov r12, " + (sym != nullptr ? sym->m_name : asc::relative_dereference("rbp", re->offset)));
+        as.instruct(scope->name(), std::string("mov" + (sx && !re ? "sx" :
             (dest.is_fp_register() && sym != nullptr ? sym->instruction_suffix() : (fp_element || (re != nullptr && dest.is_fp_register()) ? std::string("s") + (lsize == 4 ? 's' : 'd') : "")))) +
-            ' ' + dest.m_name + ", " + (full_deref ? w + " [rax]" : src));
+            ' ' + dest.m_name + ", " + (full_deref ? w + " [r12]" : src));
         auto sequence_index = std::find(FP_ARG_REGISTER_SEQUENCE.begin(), FP_ARG_REGISTER_SEQUENCE.end(), dest.m_name);
         if (cc && sequence_index != FP_ARG_REGISTER_SEQUENCE.end())
         {
             as.instruct(scope->name(), std::string("mov") + ' ' +
                 get_register(ARG_REGISTER_SEQUENCE[std::distance(FP_ARG_REGISTER_SEQUENCE.begin(), sequence_index)]).byte_equivalent(lsize).m_name +
-                ", " + (full_deref ? w + " [rax]" : src));
+                ", " + (full_deref ? w + " [r12]" : src));
         }
         dpc -= lsize;
+        asc::debug("retrieved " + element->to_string() + ", stack size now " + std::to_string(dpc));
         if (element->dynamic)
             delete element;
         pop_emulation();
@@ -1484,7 +1522,8 @@ namespace asc
         auto& result = retrieve_stack(storage, cc, sx, use_passed_storage, size);
         if (dd && !result.is_fp_register())
         {
-            as.instruct(scope->name(), "mov" + std::string(re->fp ? (rsize == 8 ? "sd" : "ss") : "") + ' ' + result.byte_equivalent(rsize).m_name +
+            as.instruct(scope->name(), "mov" + std::string(sx ? "sx" : "") + (re->fp ? (rsize == 8 ? "sd" : "ss") : "") +
+                ' ' + result.byte_equivalent(rsize).m_name +
                 ", " + word(rsize) + " [" + result.byte_equivalent(8).m_name + ']');
         }
         return result;
@@ -1492,13 +1531,14 @@ namespace asc
 
     std::string parser::top_location()
     {
-        return asc::relative_dereference("rbp", -dpc);
+        return asc::relative_dereference("rbp", -dpc);  
     }
 
     void parser::forget_top()
     {
         stackable_element* element = top_emulation();
-        dpc -= element->get_size();
+        dpc -= dynamic_cast<reference_element*>(element) ? 8 : element->get_size();
+        asc::debug("forgot " + element->to_string() + " (" + std::to_string(element->get_size()) + " byte(s))");
         if (element->dynamic)
             delete element;
         pop_emulation();
@@ -1596,6 +1636,7 @@ namespace asc
     symbol* parser::symbol_table_insert(std::string name, symbol* s)
     {
         symbols[name].push_back(s);
+        asc::debug(s->m_name + " added to symbol table");
         return s;
     }
 

@@ -1,4 +1,17 @@
 #########################
+#       DATA TYPES      #
+#########################
+
+void
+char
+byte
+short int
+int
+long int
+real
+long real
+
+#########################
 #       CONSTANTS       #
 #########################
 

@@ -104,7 +104,7 @@ namespace asc
         if (sr == nullptr)
             sr = new asc::subroutine(subroutine, nullptr);
         sr->instructions += "\n\t" + instruction;
-        asc::debug("added \"" + instruction + "\" to " + subroutine);
+        asc::debug(subroutine + " instructed: " + instruction);
         return *this;
     }
 

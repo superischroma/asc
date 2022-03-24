@@ -41,7 +41,7 @@
 			},
 			{
 				"name": "constant.language.asharp",
-				"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|float|double|unsigned|signed|native|public|private|protected)\\b"
+				"match": "\\b(namespace|mathematical|conceptual|extends|const|segregate|constructor|this|object|type|void|byte|short|char|int|long|real|unsigned|signed|native|public|private|protected)\\b"
 			}]
 		},
 		"strings": {

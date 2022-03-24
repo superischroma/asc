@@ -160,6 +160,13 @@ namespace asc
         return "fp_register{name=" + m_name + ", size=" + std::to_string(size) + '}';
     }
 
+    std::string fp_register::word()
+    {
+        if (effective_sizes.empty())
+            return storage_register::word();
+        return asc::word(effective_sizes.top());
+    }
+
     stackable_element::stackable_element()
     {
         this->dynamic = false;
@@ -309,7 +316,8 @@ namespace asc
 
     bool symbol::is_floating_point()
     {
-        return this->type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
+        auto v = dynamic_cast<type_symbol*>(this) ? variant : type->variant;
+        return v == symbol_variants::FLOATING_POINT_PRIMITIVE;
     }
 
     bool symbol::operator==(symbol& rhs)
