@@ -24,6 +24,7 @@ namespace asc
         assembler as; // constructor for assembly code
         std::map<std::string, std::vector<symbol*>> symbols; // symbol table
         symbol* scope; // scope of next tokens, null if global
+        symbol* ns; // namespace of current token
         int branchc; // counter for branches
         int slc; // string literal counter
         int fplc; // floating point literal counter
@@ -63,6 +64,8 @@ namespace asc
         evaluation_state eval_delete_statement();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
+        evaluation_state eval_namespace(syntax_node*& lcurrent);
+        evaluation_state eval_namespace();
 
         // segments of evaluation
 

@@ -186,8 +186,7 @@ namespace asc
         "short",
         "int",
         "long",
-        "float",
-        "double",
+        "real",
         "signed",
         "unsigned",
         "return",
@@ -294,17 +293,6 @@ namespace asc
             res += c;
         }
         return res;
-    }
-
-    int get_type_size(std::string& prim)
-    {
-        if (prim == "void" || prim == "byte" || prim == "bool")
-            return 1;
-        if (prim == "char" || prim == "short")
-            return 2;
-        if (prim == "int" || prim == "float")
-            return 4;
-        return 8;
     }
 
     int get_register_size(std::string& reg)

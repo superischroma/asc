@@ -103,8 +103,6 @@ namespace asc
 
     std::string strip_number_literal(std::string& test);
 
-    int get_type_size(std::string& prim);
-
     int get_register_size(std::string& reg);
 
     std::string& unwrap(std::string& sl);

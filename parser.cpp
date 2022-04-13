@@ -97,7 +97,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         }
         function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, t,
-            t_array, symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), scope, use_declaration)));
+            t_array, symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, use_declaration)));
         result = f_symbol;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -125,7 +125,7 @@ namespace asc
                 if (use_declaration) // we're predefining it using a use statement
                 {
                     f_symbol->parameters.push_back(new asc::symbol('_' + f_symbol->m_name + "_arg" + std::to_string(c - 1), at,
-                        at_array, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
+                        at_array, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, ns, static_cast<symbol*>(f_symbol)));
                     if (*lcurrent == ")")
                     {
                         asc::debug("declared function with use: " + f_symbol->to_string());
@@ -144,7 +144,7 @@ namespace asc
                 return STATE_SYNTAX_ERROR;
             }
             symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, at,
-                at_array, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, static_cast<symbol*>(f_symbol)));
+                at_array, symbol_variants::FUNCTION_VARIABLE, visibilities::PUBLIC, ns, static_cast<symbol*>(f_symbol)));
             f_symbol->parameters.push_back(a_symbol);
             a_symbol->offset = s += 8;
             if (c <= 4 && !use_declaration)
@@ -230,8 +230,8 @@ namespace asc
         asc::subroutine*& ifb = as.sr(ifbname, csr); // if block subroutine
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
         ifb->ending = "jmp " + aftername; // setting ending of if block to be the jump to the after block
-        this->scope = new asc::symbol(ifbname, get_type("void"), false, symbol_variants::IF_BLOCK,
-            visibilities::LOCAL, this->scope); // move scope into if statement
+        this->scope = new asc::symbol(ifbname, nullptr, false, symbol_variants::IF_BLOCK,
+            visibilities::LOCAL, ns, this->scope); // move scope into if statement
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
     }
@@ -283,8 +283,8 @@ namespace asc
         asc::subroutine*& loopb = as.sr(loopbname, csr); // if block subroutine
         loopb->ending = ""; // no ending
         asc::subroutine*& aftb = as.sr(aftername, csr); // after if block subroutine
-        this->scope = new asc::symbol(loopbname, get_type("void"), false, symbol_variants::WHILE_BLOCK,
-            visibilities::LOCAL, this->scope); // move scope into while loop
+        this->scope = new asc::symbol(loopbname, nullptr, false, symbol_variants::WHILE_BLOCK,
+            visibilities::LOCAL, ns, this->scope); // move scope into while loop
         this->scope->helper = expression; // preserve location of expression to be evaluated later
         current = lcurrent; // bring current up to speed
         return STATE_FOUND;
@@ -306,6 +306,14 @@ namespace asc
         {
             asc::err("attempting to scope out of the global scope", lcurrent->line);
             return STATE_SYNTAX_ERROR;
+        }
+        if (ns && ns->scope == scope)
+        {
+            ns = ns->ns;
+            asc::debug("leaving namespace " + ns->to_string());
+            lcurrent = lcurrent->next;
+            current = lcurrent;
+            return STATE_FOUND;
         }
         for (auto it = symbols.begin(); it != symbols.end();)
         // destroy all symbols in the current scope
@@ -453,7 +461,7 @@ namespace asc
             return STATE_NEUTRAL;
         lcurrent = i_node; // sync up local with identifier node
         symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), t, t_array,
-            (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, scope));
+            (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, ns, scope));
         if (scope != nullptr)
         {
             sym->offset = this->reserve_data_space(sym->get_size());
@@ -478,9 +486,10 @@ namespace asc
         std::stack<function_symbol*> functions;
         std::stack<int> call_indices;
         bool call_start = false;
+        bool skip_next = false;
 
         // shunting-yard algorithm: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
-        for (syntax_node* previous_node = nullptr; *lcurrent != ";"; previous_node = lcurrent, lcurrent = lcurrent->next)
+        for (syntax_node* previous_node = nullptr; *lcurrent != ";";)
         {
             if (lcurrent == nullptr)
             {
@@ -550,7 +559,7 @@ namespace asc
                     {
                         f_sym = dynamic_cast<function_symbol*>(symbol_table_insert("_C" + t_sym->m_name,
                             new function_symbol("_C" + t_sym->m_name, t_sym, 1, symbol_variants::CONSTRUCTOR_FUNCTION,
-                            t_sym->vis, t_sym->scope, false)));
+                            t_sym->vis, t_sym->ns, t_sym->scope, false)));
                         for (auto* member : t_sym->members)
                             f_sym->parameters.push_back(member);
                         asc::debug("created implicit constructor for " + t_sym->m_name + ": " + f_sym->to_string());
@@ -597,11 +606,19 @@ namespace asc
             }
             else
             {
-                output.push_back({ *(lcurrent->value), nullptr,
+                asc::type_symbol* type_found = nullptr;
+                int pointer_l;
+                eval_full_type(lcurrent, type_found, pointer_l);
+                if (type_found) skip_next = true;
+                output.push_back({ type_found ? type_found->m_name : *(lcurrent->value), nullptr,
                     !call_indices.empty() ? call_indices.top() : -1,
                     !functions.empty() ? functions.top() : nullptr,
                     call_start ? !(call_start = false) : call_start });
             }
+            previous_node = lcurrent;
+            if (!skip_next)
+                lcurrent = lcurrent->next;
+            skip_next = false;
         }
 
         while (!operators.empty())
@@ -1004,7 +1021,7 @@ namespace asc
                             return STATE_SYNTAX_ERROR;
                         }
                         pop_emulation();
-                        bool is_double = dest_type->m_name == "double";
+                        bool is_double = dest_type == get_type("lreal");
                         bool fp_dest = dest_type->variant == symbol_variants::FLOATING_POINT_PRIMITIVE;
                         stackable_element* convertee = top_emulation();
                         integral_literal* il = dynamic_cast<integral_literal*>(convertee);
@@ -1087,6 +1104,24 @@ namespace asc
                         (it = output.erase(it))--;
                     }
                 }
+                // scope operator
+                if (oper.value == "::")
+                {
+                    if (oper.operands == 2)
+                    {
+                        symbol* scoped = dynamic_cast<symbol*>(top_emulation());
+                        if (!scoped)
+                        {
+                            asc::err("expected a symbol on right hand side of scope operator");
+                            return STATE_SYNTAX_ERROR;
+                        }
+                        if (scoped->variant == symbol_variants::NAMESPACE)
+                            pop_emulation();
+                        //else
+                        //    retrieve_stack()
+
+                    }
+                }
             }
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
             {
@@ -1134,17 +1169,17 @@ namespace asc
                 int type_offset = 0;
                 for (auto* member : t_sym->members)
                 {
-                    auto& meml = retrieve_stack_value(get_register("rbx"));
-                    as.instruct(scope->name(), "mov " + relative_dereference("rax", type_offset, meml.word())
+                    auto& meml = retrieve_stack_value(get_register(member->is_floating_point() ? "xmm4" : "rbx"));
+                    as.instruct(scope->name(), "mov" + meml.instruction_suffix() + ' ' + relative_dereference("rax", type_offset, meml.word())
                         + ", " + meml.m_name);
-                    type_offset += meml.get_size();
+                    type_offset += member->get_size();
                 }
                 preserve_value(get_register("rax"));
                 (it = output.erase(it))--;
             }
-            else if (sym != nullptr) // variable
+            else if (sym != nullptr) // symbol
             {
-                if (dynamic_cast<type_symbol*>(sym) != nullptr) // if it's a type symbol
+                if (sym->variant == symbol_variants::NAMESPACE || dynamic_cast<type_symbol*>(sym) != nullptr) // if it's a type symbol
                     push_emulation(sym);
                 else
                     preserve_symbol(sym);
@@ -1153,7 +1188,7 @@ namespace asc
             else if (is_string_literal(*token)) // string literal
             {
                 symbol* str = symbol_table_insert("_SL" + std::to_string(slc),
-                    new symbol("_SL" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                    new symbol("_SL" + std::to_string(slc), get_type("char"), true, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr, nullptr));
                 str->name_identified = true;
                 as << asc::data << str->m_name + " db " + *token + ", 0x00";
                 slc++;
@@ -1172,8 +1207,8 @@ namespace asc
             {
                 bool is_double = is_double_literal(*token);
                 symbol* fpl = symbol_table_insert("_FPL" + std::to_string(fplc),
-                    new symbol("_FPL" + std::to_string(fplc), get_type(is_double ? "double" : "float"),
-                        false, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr));
+                    new symbol("_FPL" + std::to_string(fplc), get_type(is_double ? "lreal" : "real"),
+                        false, symbol_variants::GLOBAL_VARIABLE, visibilities::PRIVATE, nullptr, nullptr));
                 fpl->name_identified = true;
                 as << asc::data << fpl->m_name + " d" + (is_double ? "q " : "d ") + strip_number_literal(*token);
                 as.instruct(scope->name(), "mov rax, " + fpl->m_name);
@@ -1300,7 +1335,7 @@ namespace asc
         if (check_eof(lcurrent = lcurrent->next)) // move past brace
             return STATE_SYNTAX_ERROR;
         type_symbol* sym = new type_symbol(identifier, nullptr, false, symbol_variants::STRUCTLIKE_TYPE,
-            visibilities::value_of(asc::to_uppercase(v)), 0, this->scope);
+            visibilities::value_of(asc::to_uppercase(v)), 0, ns, this->scope);
         symbol_table_insert(identifier, sym);
         int overall_size = 0; // keep track of type's size
         while (!check_eof(lcurrent) && *(lcurrent) != "}")
@@ -1324,7 +1359,7 @@ namespace asc
             }
             syntax_node* identifier_node = lcurrent;
             symbol* member_symbol = new symbol(identifier, t, t_array, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
-                visibilities::PUBLIC, static_cast<symbol*>(sym));
+                visibilities::PUBLIC, ns, static_cast<symbol*>(sym));
             sym->members.push_back(member_symbol);
             //symbol_table_insert(identifier, member_symbol);
             overall_size += t->get_size();
@@ -1346,20 +1381,55 @@ namespace asc
         return eval_type_construct(current);
     }
 
+    evaluation_state parser::eval_namespace(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        if (*lcurrent != "namespace") // not a namespace
+            return STATE_NEUTRAL;
+        if (check_eof(lcurrent = lcurrent->next))
+            return STATE_SYNTAX_ERROR;
+        symbol* nns = symbol_table_insert(*(lcurrent->value), new symbol(*(lcurrent->value), nullptr, 0,
+            symbol_variants::NAMESPACE, visibilities::INVALID, ns, scope));
+        if (check_eof(lcurrent = lcurrent->next)) // skip to left entry brace
+            return STATE_SYNTAX_ERROR;
+        if (check_eof(lcurrent = lcurrent->next)) // enter namespace
+            return STATE_SYNTAX_ERROR;
+        ns = nns; // scope into namespace
+        return STATE_FOUND;
+    }
+
+    evaluation_state parser::eval_namespace()
+    {
+        syntax_node* current = this->current;
+        return eval_namespace(current);
+    }
+
     evaluation_state parser::eval_full_type(syntax_node*& lcurrent, type_symbol*& found, int& pointer)
     {
         syntax_node* slcurrent = lcurrent;
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
-        unsigned char s = 0;
-        if (*slcurrent == "signed") s = 1;
-        if (*slcurrent == "unsigned") s = 2;
-        if (s != 0)
+        unsigned char signedness = 0;   // 0 - signed, unspecified
+                                        // 1 - signed, specified
+                                        // 2 - unsigned
+        char length = '\0';
+        while (!check_eof(slcurrent, true))
         {
-            if (check_eof(slcurrent = slcurrent->next, true))
-                return STATE_NEUTRAL;
+            if (*slcurrent == "signed")
+                signedness = 1;
+            else if (*slcurrent == "unsigned")
+                signedness = 2;
+            else if (*slcurrent == "short")
+                length = 's';
+            else if (*slcurrent == "long")
+                length = 'l';
+            else
+                break;
+            slcurrent = slcurrent->next;
         }
-        std::string identifier = (s == 2 ? "u" : "") + *(slcurrent->value);
+        std::string identifier = (signedness == 2 ? "u" : "") + (length ? std::string() + length : "") +
+            *(slcurrent->value);
         asc::symbol* type = symbol_table_get(identifier);
         if (type == nullptr)
             return STATE_NEUTRAL;
@@ -1370,7 +1440,7 @@ namespace asc
                 type->variant != symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE &&
                 type->variant != symbol_variants::FLOATING_POINT_PRIMITIVE)
             return STATE_NEUTRAL;
-        if (s == 1 && type->variant != symbol_variants::INTEGRAL_PRIMITIVE)
+        if (signedness == 1 && type->variant != symbol_variants::INTEGRAL_PRIMITIVE)
         {
             asc::err("cannot apply modifier 'signed' to type '" + type->m_name + '\'', slcurrent->line);
             return STATE_SYNTAX_ERROR;

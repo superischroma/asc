@@ -29,6 +29,7 @@ namespace asc
         const symbol_variant UNSIGNED_INTEGRAL_PRIMITIVE = 0x0C;
         const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0D;
         const symbol_variant CONSTRUCTOR_FUNCTION = 0x0E;
+        const symbol_variant NAMESPACE = 0x0F;
 
         std::string name(symbol_variant st);
     }
@@ -95,13 +96,14 @@ namespace asc
         symbol_variant variant;
         visibility vis;
         symbol* scope;
+        symbol* ns;
         syntax_node* helper;
         int offset;
         int split_b;
         bool name_identified;
         
-        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope);
-        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*&& scope);
+        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope);
+        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope);
         std::string name();
         std::string location();
         std::string to_string() override;
@@ -117,8 +119,8 @@ namespace asc
         std::deque<symbol*> members;
         int size;
 
-        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*& scope);
-        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*&& scope);
+        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope);
+        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope);
         std::string to_string() override;
         int get_size() override;
         bool is_primitive();
@@ -134,7 +136,7 @@ namespace asc
         std::deque<symbol*> parameters;
         bool external_decl;
 
-        function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl);
+        function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
         std::string to_string() override;
         int get_size() override;
     };

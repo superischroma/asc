@@ -5,7 +5,7 @@ void out(int* arr, int index)
     printf("%d", arr[index]);
 }
 
-int main()
+public int main()
 {
     int* test ~= 5;
     test[0] = 3;

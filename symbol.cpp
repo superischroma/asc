@@ -32,19 +32,19 @@ namespace asc
     }
 
     std::map<std::string, asc::type_symbol> STANDARD_TYPES = {
-        { "void", { "void", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 0, nullptr } },
-        { "byte", { "byte", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
-        { "ubyte", { "unsigned byte", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr } },
-        { "bool", { "bool", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
-        { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr } },
-        { "short", { "short", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
-        { "ushort", { "unsigned short", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr } },
-        { "int", { "int", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
-        { "uint", { "unsigned int", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
-        { "long", { "long", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
-        { "ulong", { "unsigned long", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
-        { "float", { "float", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 4, nullptr } },
-        { "double", { "double", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 8, nullptr } },
+        { "void", { "void", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 0, nullptr, nullptr } },
+        { "byte", { "byte", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "ubyte", { "ubyte", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "bool", { "bool", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "sint", { "sint", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
+        { "usint", { "usint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
+        { "int", { "int", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "uint", { "uint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "lint", { "lint", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
+        { "ulint", { "ulint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
+        { "real", { "real", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "lreal", { "lreal", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
     };
 
     std::map<std::string, std::shared_ptr<asc::storage_register>> STANDARD_REGISTERS = {
@@ -260,7 +260,7 @@ namespace asc
         return is_fp_register() ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
-    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope)
+    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope)
     {
         this->m_name = name;
         this->type = type;
@@ -268,6 +268,7 @@ namespace asc
         this->variant = variant;
         this->vis = vis;
         this->scope = scope;
+        this->ns = ns;
         this->helper = nullptr;
         this->offset = 0;
         this->split_b = 0;
@@ -276,8 +277,8 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*&& scope):
-        symbol(name, type, pointer, variant, vis, scope) {}
+    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope):
+        symbol(name, type, pointer, variant, vis, ns, scope) {}
 
     std::string symbol::location()
     {
@@ -325,14 +326,14 @@ namespace asc
         return this->m_name == rhs.m_name;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*& scope):
-        symbol(name, type, pointer, variant, vis, scope)
+    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope):
+        symbol(name, type, pointer, variant, vis, ns, scope)
     {
         this->size = size;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol*&& scope):
-        type_symbol(name, type, pointer, variant, vis, size, scope) {}
+    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope):
+        type_symbol(name, type, pointer, variant, vis, size, ns, scope) {}
     
     int type_symbol::get_size()
     {
@@ -388,8 +389,8 @@ namespace asc
         return off;
     }
 
-    function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol*& scope, bool external_decl):
-        symbol(name, type, pointer, variant, vis, scope)
+    function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl):
+        symbol(name, type, pointer, variant, vis, ns, scope)
     {
         this->external_decl = external_decl;
     }
