@@ -45,6 +45,7 @@ namespace asc
         std::string data;
         std::string bss;
         std::set<std::string> ext;
+        std::set<std::string> inc;
         std::map<std::string, subroutine*> subroutines;
     public:
         std::string entry;
@@ -60,6 +61,7 @@ namespace asc
         assembler& release(std::string& subroutine);
         assembler& release(std::string&& subroutine);
         assembler& external(std::string identifier);
+        assembler& include(std::string filename);
         asc::subroutine*& sr(std::string& name, subroutine* parent);
         asc::subroutine*& sr(std::string& name);
         asc::subroutine*& sr(std::string&& name);

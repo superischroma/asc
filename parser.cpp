@@ -26,6 +26,7 @@ namespace asc
         this->dpc = 0;
         this->dpm = 0;
         this->heap = false;
+        this->m = nullptr;
         // add all standard types
         for (auto& p : STANDARD_TYPES)
             this->symbols[p.first].push_back(&(p.second));
@@ -403,11 +404,18 @@ namespace asc
         else
         {
             std::string& path = asc::unwrap(*(lcurrent->value));
-            if (asc::compile(path) == -1) // if compilation doesn't work for external module
+            int bpos = filepath.find_last_of('\\');
+            int fpos = filepath.find_last_of('/');
+            int pos = std::max(bpos, fpos);
+            if (pos != std::string::npos)
+                path = filepath.substr(0, pos + 1) + path;
+            if (asc::compile(path, this) == -1) // if compilation doesn't work for external module
             {
                 asc::err("usage compilation of " + path + " failed", lcurrent->line);
                 return STATE_SYNTAX_ERROR;
             }
+            as.include(path.substr(0, path.length() - 3) + ".asm");
+            asc::debug("included \"" + path + "\" in this current file");
         }
         lcurrent = lcurrent->next; // skip to semicolon
         if (check_eof(lcurrent, true))
@@ -656,7 +664,7 @@ namespace asc
                 auto call = it--;
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 std::deque<rpn_element> replacement;
-                int parameter_count = it->function ? it->parameter_index + 1 : 0;
+                int parameter_count = it->function && it->function == f_sym ? it->parameter_index + 1 : 0;
                 if (!f_sym->external_decl && f_sym->parameters.size() != parameter_count)
                 {
                     asc::err("function " + f_sym->m_name + " expected " +
@@ -1107,6 +1115,9 @@ namespace asc
                 // scope operator
                 if (oper.value == "::")
                 {
+                    asc::err("scope operator not implemented yet");
+                    return STATE_SYNTAX_ERROR;
+                    /*
                     if (oper.operands == 2)
                     {
                         symbol* scoped = dynamic_cast<symbol*>(top_emulation());
@@ -1121,6 +1132,7 @@ namespace asc
                         //    retrieve_stack()
 
                     }
+                    */
                 }
             }
             else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION) // function call
@@ -1707,6 +1719,9 @@ namespace asc
     {
         symbols[name].push_back(s);
         asc::debug(s->m_name + " added to symbol table");
+        std::cout << "0 " << m << std::endl; 
+        if (m) m->symbol_table_insert(name, s);
+        std::cout << '1' << std::endl;
         return s;
     }
 
@@ -1716,6 +1731,7 @@ namespace asc
         vec.erase(std::remove(vec.begin(), vec.end(), s), vec.end());
         if (vec.empty())
             symbols.erase(s->m_name); // free some memory if we're not using the vector
+        if (m) m->symbol_table_delete(s);
     }
 
     symbol* parser::get_current_function()
