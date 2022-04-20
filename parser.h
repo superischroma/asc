@@ -66,6 +66,10 @@ namespace asc
         evaluation_state eval_delete_statement();
         evaluation_state eval_type_construct(syntax_node*& lcurrent);
         evaluation_state eval_type_construct();
+        evaluation_state eval_object_construct(syntax_node*& lcurrent);
+        evaluation_state eval_object_construct();
+        evaluation_state eval_object_field(syntax_node*& lcurrent);
+        evaluation_state eval_object_method(syntax_node*& lcurrent);
         evaluation_state eval_namespace(syntax_node*& lcurrent);
         evaluation_state eval_namespace();
 

@@ -1393,6 +1393,51 @@ namespace asc
         return eval_type_construct(current);
     }
 
+    evaluation_state parser::eval_object_construct(syntax_node*& lcurrent)
+    {
+        if (check_eof(lcurrent, true))
+            return STATE_NEUTRAL;
+        syntax_node* slcurrent = lcurrent;
+        evaluation_state v_state = visibilities::value_of(asc::to_uppercase(*(slcurrent->value))) != visibilities::INVALID;
+        std::string v = "private"; // default to private
+        if (v_state == STATE_FOUND) // if a specifier was found, add it
+            v = *(slcurrent->value);
+        if (v_state == STATE_SYNTAX_ERROR)
+            return STATE_SYNTAX_ERROR;
+        if (check_eof(slcurrent = slcurrent->next))
+            return STATE_NEUTRAL;
+        if (*(slcurrent) != "object") // not a type
+            return STATE_NEUTRAL;
+        lcurrent = slcurrent; // sync up local current with super local current
+        if (check_eof(lcurrent = lcurrent->next)) // move forward to identifier
+            return STATE_SYNTAX_ERROR;
+        std::string identifier = *(lcurrent->value); // get the identifier
+        if (check_eof(lcurrent = lcurrent->next)) // move forward
+            return STATE_SYNTAX_ERROR;
+        if ((*lcurrent) == "extends")
+        {
+            asc::err("inheritance is not implemented yet", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if ((*lcurrent) != "{") // if we're not starting the type
+        {
+            asc::err("type definition expected", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if (check_eof(lcurrent = lcurrent->next)) // move past brace
+            return STATE_SYNTAX_ERROR;
+        type_symbol* sym = new type_symbol(identifier, nullptr, false, symbol_variants::OBJECT,
+            visibilities::value_of(asc::to_uppercase(v)), 0, ns, this->scope);
+        symbol_table_insert(identifier, sym);
+        int overall_size = 0; // keep track of type's size
+    }
+
+    evaluation_state parser::eval_object_construct(syntax_node*& lcurrent)
+    {
+        syntax_node* current = this->current;
+        return eval_object_construct(current);
+    }
+
     evaluation_state parser::eval_namespace(syntax_node*& lcurrent)
     {
         if (check_eof(lcurrent, true))
