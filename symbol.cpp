@@ -8,13 +8,13 @@ namespace asc
 {
     namespace symbol_variants
     {
-        std::string name(symbol_variant st)
+        std::string name(symbol_variant sv)
         {
-            switch (st)
+            switch (sv)
             {
                 case LOCAL_VARIABLE: return "VARIABLE";
                 case GLOBAL_VARIABLE: return "GLOBAL_VARIABLE";
-                case FUNCTION_VARIABLE: return "FUNCTION_VARIABLE";
+                case PARAMETER_VARIABLE: return "FUNCTION_VARIABLE";
                 case FUNCTION: return "FUNCTION";
                 case IF_BLOCK: return "IF_BLOCK";
                 case WHILE_BLOCK: return "WHILE_BLOCK";
@@ -23,28 +23,36 @@ namespace asc
                 case STRUCTLIKE_TYPE_MEMBER: return "STRUCTLIKE_TYPE_MEMBER";
                 case OBJECT: return "OBJECT";
                 case PRIMITIVE: return "PRIMITIVE";
-                case FLOATING_POINT_PRIMITIVE: return "FLOATING_POINT_PRIMITIVE";
                 case INTEGRAL_PRIMITIVE: return "INTEGRAL_PRIMITIVE";
                 case UNSIGNED_INTEGRAL_PRIMITIVE: return "UNSIGNED_INTEGRAL_PRIMITIVE";
-                default: return "UNNAMED_SYMBOL_TYPE_" + std::to_string(st);
+                case FLOATING_POINT_PRIMITIVE: return "FLOATING_POINT_PRIMITIVE";
+                case METHOD: return "METHOD";
+                case CONSTRUCTOR_METHOD: return "CONSTRUCTOR_METHOD";
+                case NAMESPACE: return "NAMESPACE";
+                default: return "UNNAMED_SYMBOL_TYPE_" + std::to_string(sv);
             }
+        }
+
+        bool is_function_variant(symbol_variant sv)
+        {
+            return sv == FUNCTION || sv == METHOD || sv == CONSTRUCTOR_METHOD;
         }
     }
 
     std::map<std::string, asc::type_symbol> STANDARD_TYPES = {
-        { "void", { "void", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 0, nullptr, nullptr } },
-        { "byte", { "byte", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
-        { "ubyte", { "ubyte", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
-        { "bool", { "bool", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
-        { "char", { "char", nullptr, false, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
-        { "sint", { "sint", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
-        { "usint", { "usint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
-        { "int", { "int", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
-        { "uint", { "uint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
-        { "lint", { "lint", nullptr, false, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
-        { "ulint", { "ulint", nullptr, false, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
-        { "real", { "real", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
-        { "lreal", { "lreal", nullptr, false, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
+        { "void", { "void", {}, symbol_variants::PRIMITIVE, visibilities::INVALID, 0, nullptr, nullptr } },
+        { "byte", { "byte", {}, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "ubyte", { "ubyte", {}, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "bool", { "bool", {}, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "char", { "char", {}, symbol_variants::PRIMITIVE, visibilities::INVALID, 1, nullptr, nullptr } },
+        { "sint", { "sint", {}, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
+        { "usint", { "usint", {}, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 2, nullptr, nullptr } },
+        { "int", { "int", {}, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "uint", { "uint", {}, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "lint", { "lint", {}, symbol_variants::INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
+        { "ulint", { "ulint", {}, symbol_variants::UNSIGNED_INTEGRAL_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
+        { "real", { "real", {}, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 4, nullptr, nullptr } },
+        { "lreal", { "lreal", {}, symbol_variants::FLOATING_POINT_PRIMITIVE, visibilities::INVALID, 8, nullptr, nullptr } },
     };
 
     std::map<std::string, std::shared_ptr<asc::storage_register>> STANDARD_REGISTERS = {
@@ -260,11 +268,10 @@ namespace asc
         return is_fp_register() ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
-    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope)
+    symbol::symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope)
     {
         this->m_name = name;
-        this->type = type;
-        this->pointer = pointer;
+        this->fqt = fqt;
         this->variant = variant;
         this->vis = vis;
         this->scope = scope;
@@ -277,8 +284,8 @@ namespace asc
             asc::info(this->to_string());
     }
 
-    symbol::symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope):
-        symbol(name, type, pointer, variant, vis, ns, scope) {}
+    symbol::symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope):
+        symbol(name, fqt, variant, vis, ns, scope) {}
 
     std::string symbol::location()
     {
@@ -298,8 +305,8 @@ namespace asc
 
     std::string symbol::to_string()
     {
-        std::string str = "asc::symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
-        for (int i = 0; i < pointer; i++) str += '*';
+        std::string str = "asc::symbol{name=" + m_name + ", type=" + (fqt.base != nullptr ? fqt.base->m_name : "null");
+        for (int i = 0; i < fqt.pointer_level; i++) str += '*';
         str += ", symbol_variant=" + asc::symbol_variants::name(variant) + ", visibility=" +
             visibilities::name(vis) + ", scope=" + (scope != nullptr ? scope->name() : "<global>") + '}';
         return str;
@@ -307,17 +314,17 @@ namespace asc
 
     int symbol::get_size()
     {
-        return !pointer ? type->size : 8;
+        return !fqt.pointer_level ? fqt.base->size : 8;
     }
 
     std::string symbol::instruction_suffix()
     {
-        return is_floating_point() && !pointer ? (get_size() == 4 ? "ss" : "sd") : "";
+        return is_floating_point() && !fqt.pointer_level ? (get_size() == 4 ? "ss" : "sd") : "";
     }
 
     bool symbol::is_floating_point()
     {
-        auto v = dynamic_cast<type_symbol*>(this) ? variant : type->variant;
+        auto v = dynamic_cast<type_symbol*>(this) ? variant : fqt.base->variant;
         return v == symbol_variants::FLOATING_POINT_PRIMITIVE;
     }
 
@@ -326,14 +333,14 @@ namespace asc
         return this->m_name == rhs.m_name;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope):
-        symbol(name, type, pointer, variant, vis, ns, scope)
+    type_symbol::type_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope):
+        symbol(name, fqt, variant, vis, ns, scope)
     {
         this->size = size;
     }
 
-    type_symbol::type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope):
-        type_symbol(name, type, pointer, variant, vis, size, ns, scope) {}
+    type_symbol::type_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope):
+        type_symbol(name, fqt, variant, vis, size, ns, scope) {}
     
     int type_symbol::get_size()
     {
@@ -342,15 +349,15 @@ namespace asc
 
     std::string type_symbol::to_string()
     {
-        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
-        for (int i = 0; i < pointer; i++) s += '*';
+        std::string s = "asc::type_symbol{name=" + m_name + ", type=" + (fqt.base != nullptr ? fqt.base->m_name : "null");
+        for (int i = 0; i < fqt.pointer_level; i++) s += '*';
         s += ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) + ", size=" + std::to_string(size) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
         for (int i = 0; i < members.size(); i++)
         {
             if (i != 0) s += ", ";
-            s += members[i]->type->m_name + asc::pointers(members[i]->pointer) + ' ' + members[i]->m_name;
+            s += members[i]->fqt.base->m_name + asc::pointers(members[i]->fqt.pointer_level) + ' ' + members[i]->m_name;
         }
         s += ']';
 
@@ -389,16 +396,16 @@ namespace asc
         return off;
     }
 
-    function_symbol::function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl):
-        symbol(name, type, pointer, variant, vis, ns, scope)
+    function_symbol::function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl):
+        symbol(name, fqt, variant, vis, ns, scope)
     {
         this->external_decl = external_decl;
     }
 
     std::string function_symbol::to_string()
     {
-        std::string str = "asc::function_symbol{name=" + m_name + ", type=" + (type != nullptr ? type->m_name : "null");
-        for (int i = 0; i < pointer; i++) str += '*';
+        std::string str = "asc::function_symbol{name=" + m_name + ", type=" + (fqt.base != nullptr ? fqt.base->m_name : "null");
+        for (int i = 0; i < fqt.pointer_level; i++) str += '*';
         str += ", symbol_type=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", parameters=[";
@@ -406,8 +413,8 @@ namespace asc
         {
             if (i != 0)
                 str += ", ";
-            str += parameters[i]->type->m_name;
-            for (int j = 0; j < parameters[i]->pointer; j++) str += '*';
+            str += parameters[i]->fqt.base->m_name;
+            for (int j = 0; j < parameters[i]->fqt.pointer_level; j++) str += '*';
             str += ' ' + parameters[i]->m_name;
         }
         str += std::string("], external_decl=") + (this->external_decl ? "true" : "false");
@@ -417,26 +424,25 @@ namespace asc
 
     int function_symbol::get_size()
     {
-        return !pointer ? type->size : 8;
+        return !fqt.pointer_level ? fqt.base->size : 8;
     }
 
-    reference_element::reference_element(int offset, bool fp, type_symbol* type, int pointer)
+    reference_element::reference_element(int offset, bool fp, fully_qualified_type fqt)
     {
         this->offset = offset;
         this->fp = fp;
-        this->type = type;
-        this->pointer = pointer;
+        this->fqt = fqt;
     }
 
     std::string reference_element::to_string()
     {
-        return "asc::reference_element{type=" + type->m_name + asc::pointers(pointer) + ", offset=" + std::to_string(offset) + 
+        return "asc::reference_element{type=" + fqt.base->m_name + asc::pointers(fqt.pointer_level) + ", offset=" + std::to_string(offset) + 
             ", fp=" + asc::to_string(fp) + '}';
     }
 
     int reference_element::get_size()
     {
-        return !pointer ? type->size : 8;
+        return !fqt.pointer_level ? fqt.base->size : 8;
     }
 
     std::string word(int size)

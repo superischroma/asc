@@ -85,6 +85,15 @@ namespace asc
         visibility value_of(std::string name);
     }
 
+    namespace specifiers
+    {
+        const unsigned short INVALID = -1;
+        const unsigned short SEGREGATE = 0;
+
+        std::string name(unsigned short type);
+        visibility value_of(std::string name);
+    }
+
     unsigned char is_keyword(std::string& test);
 
     unsigned char is_punctuator(std::string& test);

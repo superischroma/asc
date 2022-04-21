@@ -68,20 +68,20 @@ namespace asc
         evaluation_state eval_type_construct();
         evaluation_state eval_object_construct(syntax_node*& lcurrent);
         evaluation_state eval_object_construct();
-        evaluation_state eval_object_field(syntax_node*& lcurrent);
-        evaluation_state eval_object_method(syntax_node*& lcurrent);
+        evaluation_state eval_object_field(syntax_node*& lcurrent, type_symbol* obj);
+        evaluation_state eval_object_method(syntax_node*& lcurrent, type_symbol* obj);
         evaluation_state eval_namespace(syntax_node*& lcurrent);
         evaluation_state eval_namespace();
 
         // segments of evaluation
 
         // evaluate full type
-        evaluation_state eval_full_type(syntax_node*& lcurrent, type_symbol*& found, int& pointer);
+        evaluation_state eval_full_type(syntax_node*& lcurrent, fully_qualified_type& fqt);
 
         // value management
         int preserve_value(storage_register& location, int size = -1, symbol* scope = nullptr);
         int preserve_symbol(symbol* sym, symbol* scope = nullptr);
-        int preserve_reference(storage_register& location, type_symbol* type, int pointer, symbol* scope = nullptr);
+        int preserve_reference(storage_register& location, fully_qualified_type& fqt, symbol* scope = nullptr);
         int reserve_data_space(int size);
         storage_register& retrieve_stack(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);
         storage_register& retrieve_stack_value(storage_register& storage, bool cc = false, bool sx = false, bool use_passed_storage = false, int* size = nullptr);

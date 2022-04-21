@@ -10,13 +10,14 @@
 namespace asc
 {
     typedef unsigned short visibility;
+    typedef unsigned short specifier;
 
     typedef unsigned int symbol_variant;
     namespace symbol_variants
     {
         const symbol_variant LOCAL_VARIABLE = 0x00;
         const symbol_variant GLOBAL_VARIABLE = 0x01;
-        const symbol_variant FUNCTION_VARIABLE = 0x02;
+        const symbol_variant PARAMETER_VARIABLE = 0x02;
         const symbol_variant FUNCTION = 0x03;
         const symbol_variant IF_BLOCK = 0x04;
         const symbol_variant WHILE_BLOCK = 0x05;
@@ -28,10 +29,12 @@ namespace asc
         const symbol_variant INTEGRAL_PRIMITIVE = 0x0B;
         const symbol_variant UNSIGNED_INTEGRAL_PRIMITIVE = 0x0C;
         const symbol_variant FLOATING_POINT_PRIMITIVE = 0x0D;
-        const symbol_variant CONSTRUCTOR_FUNCTION = 0x0E;
-        const symbol_variant NAMESPACE = 0x0F;
+        const symbol_variant METHOD = 0x0E;
+        const symbol_variant CONSTRUCTOR_METHOD = 0x0F;
+        const symbol_variant NAMESPACE = 0x10;
 
-        std::string name(symbol_variant st);
+        std::string name(symbol_variant sv);
+        bool is_function_variant(symbol_variant sv);
     }
 
     class stackable_element
@@ -86,13 +89,13 @@ namespace asc
     storage_register& get_register(std::string&& str);
 
     class type_symbol; // forward declaration of type symbol
+    typedef struct fully_qualified_type fully_qualified_type; // forward decl of fqt
 
     class symbol: public stackable_element
     {
     public:
         std::string m_name;
-        type_symbol* type;
-        int pointer;
+        fully_qualified_type fqt;
         symbol_variant variant;
         visibility vis;
         symbol* scope;
@@ -102,8 +105,8 @@ namespace asc
         int split_b;
         bool name_identified;
         
-        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope);
-        symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope);
+        symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope);
+        symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*&& scope);
         std::string name();
         std::string location();
         std::string to_string() override;
@@ -119,8 +122,8 @@ namespace asc
         std::deque<symbol*> members;
         int size;
 
-        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope);
-        type_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope);
+        type_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope);
+        type_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*&& scope);
         std::string to_string() override;
         int get_size() override;
         bool is_primitive();
@@ -136,7 +139,7 @@ namespace asc
         std::deque<symbol*> parameters;
         bool external_decl;
 
-        function_symbol(std::string name, type_symbol* type, int pointer, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
+        function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
         std::string to_string() override;
         int get_size() override;
     };
@@ -146,14 +149,19 @@ namespace asc
     public:
         int offset;
         bool fp;
-        // qualified type
-        type_symbol* type;
-        int pointer;
+        fully_qualified_type fqt;
 
-        reference_element(int offset, bool fp, type_symbol* type, int pointer);
+        reference_element(int offset, bool fp, fully_qualified_type fqt);
         std::string to_string() override;
         int get_size() override;
     };
+
+    typedef struct fully_qualified_type
+    {
+        type_symbol* base = nullptr;
+        int pointer_level = 0;
+        std::set<specifier> specifiers;
+    } fully_qualified_type;
 
     std::string word(int size);
     int compare(std::string& w1, std::string& w2);

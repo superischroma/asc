@@ -108,6 +108,7 @@ namespace asc
                 case PRIVATE: return "PRIVATE";
                 case PROTECTED: return "PROTECTED";
                 case LOCAL: return "LOCAL";
+                case INVALID: return "INVALID";
                 default: return "UNNAMED_VISIBILITY_" + std::to_string(type);
             }
         }
@@ -122,6 +123,26 @@ namespace asc
                 return PROTECTED;
             if (name == "LOCAL")
                 return LOCAL;
+            return INVALID;
+        }
+    }
+
+    namespace specifiers
+    {
+        std::string name(unsigned short type)
+        {
+            switch (type)
+            {
+                case SEGREGATE: return "SEGREGATE";
+                case INVALID: return "INVALID";
+                default: return "UNNAMED_SPECIFIER_" + std::to_string(type);
+            }
+        }
+
+        visibility value_of(std::string name)
+        {
+            if (name == "SEGREGATE")
+                return SEGREGATE;
             return INVALID;
         }
     }
