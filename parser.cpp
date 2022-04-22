@@ -102,8 +102,8 @@ namespace asc
             asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
         }
-        function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
-            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, use_declaration)));
+        function_symbol* f_symbol = scope->variant != symbol_variants::OBJECT ? dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
+            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, use_declaration))) : dynamic_cast<type_symbol*>();
         result = f_symbol;
         for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
@@ -1435,7 +1435,6 @@ namespace asc
         type_symbol* sym = new type_symbol(identifier, {}, symbol_variants::OBJECT,
             visibilities::value_of(asc::to_uppercase(v)), 0, ns, this->scope);
         symbol_table_insert(identifier, sym);
-        int overall_size = 0; // keep track of type's size
         while (!check_eof(lcurrent, true) && *lcurrent != "}")
         {
             auto of = eval_object_field(lcurrent, sym);

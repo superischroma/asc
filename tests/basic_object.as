@@ -23,3 +23,9 @@ public object Location
         return this.x;
     }
 }
+
+public int main()
+{
+    Location loc = Location(0, 0, 0);
+    printf("%d", loc.getX());
+}
