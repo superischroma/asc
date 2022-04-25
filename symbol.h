@@ -35,6 +35,7 @@ namespace asc
 
         std::string name(symbol_variant sv);
         bool is_function_variant(symbol_variant sv);
+        bool is_method_variant(symbol_variant sv);
     }
 
     class stackable_element
@@ -119,7 +120,8 @@ namespace asc
     class type_symbol: public symbol
     {
     public:
-        std::deque<symbol*> members;
+        std::deque<symbol*> fields;
+        std::deque<function_symbol*> methods;
         int size;
 
         type_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, int size, symbol* ns, symbol*& scope);
@@ -128,7 +130,7 @@ namespace asc
         int get_size() override;
         bool is_primitive();
         int calc_size();
-        int calc_member_offset(symbol* member);
+        int calc_field_offset(symbol* field);
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;
@@ -140,6 +142,7 @@ namespace asc
         bool external_decl;
 
         function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
+        symbol* get_parameter(std::string name);
         std::string to_string() override;
         int get_size() override;
     };

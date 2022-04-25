@@ -37,6 +37,11 @@ namespace asc
         {
             return sv == FUNCTION || sv == METHOD || sv == CONSTRUCTOR_METHOD;
         }
+
+        bool is_method_variant(symbol_variant sv)
+        {
+            return sv == METHOD || sv == CONSTRUCTOR_METHOD;
+        }
     }
 
     std::map<std::string, asc::type_symbol> STANDARD_TYPES = {
@@ -354,10 +359,10 @@ namespace asc
         s += ", symbol_variant=" +
             asc::symbol_variants::name(variant) + ", visibility=" + visibilities::name(vis) + ", size=" + std::to_string(size) +
             ", scope=" + (scope != nullptr ? scope->name() : "<global>") + ", members=[";
-        for (int i = 0; i < members.size(); i++)
+        for (int i = 0; i < fields.size(); i++)
         {
             if (i != 0) s += ", ";
-            s += members[i]->fqt.base->m_name + asc::pointers(members[i]->fqt.pointer_level) + ' ' + members[i]->m_name;
+            s += fields[i]->fqt.base->m_name + asc::pointers(fields[i]->fqt.pointer_level) + ' ' + fields[i]->m_name;
         }
         s += ']';
 
@@ -379,17 +384,17 @@ namespace asc
     int type_symbol::calc_size()
     {
         int sz = 0;
-        for (auto* member : this->members) sz += member->get_size();
+        for (auto* member : this->fields) sz += member->get_size();
         return sz;
     }
 
     // Calculates the memory offset of a type member from a pointer
-    int type_symbol::calc_member_offset(symbol* member)
+    int type_symbol::calc_field_offset(symbol* field)
     {
         int off = 0;
-        for (auto* m : this->members)
+        for (auto* m : this->fields)
         {
-            if (m == member)
+            if (m == field)
                 break;
             off += m->get_size();
         }
@@ -400,6 +405,16 @@ namespace asc
         symbol(name, fqt, variant, vis, ns, scope)
     {
         this->external_decl = external_decl;
+    }
+
+    symbol* function_symbol::get_parameter(std::string name)
+    {
+        for (auto& parameter : parameters)
+        {
+            if (parameter->m_name == name)
+                return parameter;
+        }
+        return nullptr;
     }
 
     std::string function_symbol::to_string()

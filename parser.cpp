@@ -73,17 +73,35 @@ namespace asc
             if (check_eof(slcurrent, true))
                 return STATE_NEUTRAL;
         }
-        int t_line = slcurrent->line;
+        bool is_method = scope && scope->variant == symbol_variants::OBJECT;
+        type_symbol* obj = is_method ? dynamic_cast<type_symbol*>(scope) : nullptr;
+        int t_line = -1;
         fully_qualified_type fqt;
-        evaluation_state t_state = eval_full_type(slcurrent, fqt);
-        if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
-            return t_state;
-        //asc::debug('t' << std::endl;
+        evaluation_state t_state = STATE_FOUND;
+        if (*slcurrent != "constructor")
+        {
+            t_line = slcurrent->line;
+            t_state = eval_full_type(slcurrent, fqt);
+            if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
+                return t_state;
+            if (check_eof(slcurrent, true))
+                return STATE_NEUTRAL;
+        }
+        else
+        {
+            if (!is_method)
+            {
+                asc::err("constructor defined outside of the scope of an object");
+                return STATE_SYNTAX_ERROR;
+            }
+            fqt = symbol_table_get("_C" + obj->m_name)->fqt;
+        }
         // at this point, it could still be a variable definition/declaration, so let's continue
-        if (check_eof(slcurrent, true))
-            return STATE_NEUTRAL;
         int i_line = slcurrent->line;
         std::string& identifier = *(slcurrent->value); // get the identifier that MIGHT be there
+        bool is_constructor = identifier == "constructor";
+        if (is_constructor) // constructor method
+            identifier = "_C" + scope->m_name;
         //asc::debug('i' << std::endl;
         slcurrent = slcurrent->next;
         if (check_eof(slcurrent, true))
@@ -102,10 +120,20 @@ namespace asc
             asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
         }
-        function_symbol* f_symbol = scope->variant != symbol_variants::OBJECT ? dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
-            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, use_declaration))) : dynamic_cast<type_symbol*>();
+        function_symbol* f_symbol = is_method ? dynamic_cast<function_symbol*>(symbol_table_get(identifier)) :
+            dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
+            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, use_declaration)));
         result = f_symbol;
-        for (int c = 1, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
+        if (is_method && !is_constructor)
+        {
+            symbol* that = f_symbol->get_parameter("this");
+            symbol_table_insert(that->m_name, that);
+            storage_register& stor = asc::get_register(fqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+                "xmm0" : "rcx").byte_equivalent(fqt.base->get_size());
+            as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + ' ' + fqt.base->word() + " [rbp + " +
+                std::to_string(that->offset) + "], " + stor.m_name);
+        }
+        for (int c = is_method && !is_constructor ? 2 : 1, s = is_method && !is_constructor ? 16 : 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
             lcurrent = lcurrent->next; // first, the argument type
             if (check_eof(lcurrent))
@@ -148,10 +176,14 @@ namespace asc
                 asc::err("symbol is already defined", ai_line);
                 return STATE_SYNTAX_ERROR;
             }
-            symbol* a_symbol = symbol_table_insert(a_identifier, new asc::symbol(a_identifier, afqt,
+            symbol* a_symbol = is_method ? symbol_table_insert(a_identifier, f_symbol->get_parameter(a_identifier)) :
+                symbol_table_insert(a_identifier, new asc::symbol(a_identifier, afqt,
                 symbol_variants::PARAMETER_VARIABLE, visibilities::PUBLIC, ns, static_cast<symbol*>(f_symbol)));
-            f_symbol->parameters.push_back(a_symbol);
-            a_symbol->offset = s += 8;
+            if (!is_method)
+            {
+                f_symbol->parameters.push_back(a_symbol);
+                a_symbol->offset = s += 8;
+            }
             if (c <= 4 && !use_declaration)
             {
                 storage_register& stor = asc::get_register(fqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
@@ -183,6 +215,20 @@ namespace asc
         lcurrent = lcurrent->next; // move into the function
         if (check_eof(lcurrent))
             return STATE_SYNTAX_ERROR;
+        if (is_constructor) // create memory for object
+        {
+            symbol* that = symbol_table_insert("this", new asc::symbol("this", { obj, 1 },
+                symbol_variants::LOCAL_VARIABLE, visibilities::INVALID, ns, scope));
+            that->offset = this->reserve_data_space(that->get_size());
+            push_emulation(that);
+            init_heap();
+            as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
+            as.instruct(scope->name(), "mov rdx, 8");
+            as.instruct(scope->name(), "mov r8, " + that->fqt.base->calc_size());
+            as.external("HeapAlloc");
+            as.instruct(scope->name(), "call HeapAlloc");
+            as.instruct(scope->name(), "mov " + relative_dereference("rbp", that->offset) + ", rax");
+        }
         current = lcurrent; // move member current to its proper location
         asc::debug("defined function: " + f_symbol->to_string());
         return STATE_FOUND; // finally, return the proper state
@@ -319,6 +365,16 @@ namespace asc
             lcurrent = lcurrent->next;
             current = lcurrent;
             return STATE_FOUND;
+        }
+        if (scope->variant == symbol_variants::CONSTRUCTOR_METHOD)
+        {
+            symbol* that = symbol_table_get("this");
+            if (!that)
+            {
+                asc::err("'this' object not found in constructor");
+                return STATE_SYNTAX_ERROR;
+            }
+            as.instruct(scope->name(), "mov rax, " + relative_dereference("rbp", that->offset));
         }
         for (auto it = symbols.begin(); it != symbols.end();)
         // destroy all symbols in the current scope
@@ -571,7 +627,7 @@ namespace asc
                         f_sym = dynamic_cast<function_symbol*>(symbol_table_insert("_C" + t_sym->m_name,
                             new function_symbol("_C" + t_sym->m_name, { t_sym, 1 }, symbol_variants::CONSTRUCTOR_METHOD,
                             t_sym->vis, t_sym->ns, t_sym->scope, false)));
-                        for (auto* member : t_sym->members)
+                        for (auto* member : t_sym->fields)
                             f_sym->parameters.push_back(member);
                         asc::debug("created implicit constructor for " + t_sym->m_name + ": " + f_sym->to_string());
                     }
@@ -1002,7 +1058,7 @@ namespace asc
                         symbol* member = dynamic_cast<symbol*>(top_emulation());
                         if (member == nullptr)
                         {
-                            asc::err("expected a member on right hand side of dot operator");
+                            asc::err("expected field or method of an object on right hand side of dot operator");
                             return STATE_SYNTAX_ERROR;
                         }
                         pop_emulation();
@@ -1014,7 +1070,7 @@ namespace asc
                         }
                         type_symbol* obj_type = obj->fqt.base;
                         auto& loc = retrieve_stack(get_register("rax"));
-                        as.instruct(scope->name(), "lea rax, " + relative_dereference("rax", obj_type->calc_member_offset(member)));
+                        as.instruct(scope->name(), "lea rax, " + relative_dereference("rax", obj_type->calc_field_offset(member)));
                         preserve_reference(loc, member->fqt);
                         (it = output.erase(it))--;
                     }
@@ -1142,11 +1198,25 @@ namespace asc
                     */
                 }
             }
-            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION || sym->variant == symbol_variants::METHOD) // function call
+            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION ||
+                sym->variant == symbol_variants::METHOD || (sym->variant == symbol_variants::CONSTRUCTOR_METHOD &&
+                sym->scope->variant == symbol_variants::OBJECT)) // function call
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling: " + f_sym->to_string());
-                for (int i = 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
+                bool is_method = sym->variant == symbol_variants::METHOD;
+                if (is_method && (it + 1) < output.end() && (it + 1)->value == ".")
+                {
+                    auto* obj = dynamic_cast<symbol*>(emulation_element(f_sym->parameters.size()));
+                    if (obj == nullptr)
+                    {
+                        asc::err("attempting to call method on non-object");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    as.instruct(scope->name(), "mov rcx, " + relative_dereference("rbp", obj->offset));
+                    (it = output.erase(it + 1))--; // remove dot operator
+                }
+                for (int i = is_method ? 1 : 0; i < (f_sym->parameters.size() > 4 ? 4 : f_sym->parameters.size()); i++)
                 {
                     asc::debug("passing " + top_emulation()->to_string() + " to function " + f_sym->m_name);
                     retrieve_stack_value(get_register(f_sym->parameters[i]->fqt.base->variant ==
@@ -1164,12 +1234,15 @@ namespace asc
                         std::to_string(i + h + 32) + "], " + transfer.m_name);
                     h += top_size;
                 }
+                // delete object a method is being called on (if necessary)
+                if (is_method && (it + 1) < output.end() && (it + 1)->value == ".") forget_top();
                 as.instruct(scope->name(), "call " + f_sym->m_name);
                 if (f_sym->get_size() != 0)
                     preserve_value(get_register(f_sym->fqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ? "xmm0" : "rax").byte_equivalent(f_sym->get_size()), f_sym->get_size()); // preserve the return value
                 (it = output.erase(it))--;
             }
-            else if (sym != nullptr && sym->variant == symbol_variants::CONSTRUCTOR_METHOD)
+            else if (sym != nullptr && sym->variant == symbol_variants::CONSTRUCTOR_METHOD &&
+                sym->scope->variant == symbol_variants::STRUCTLIKE_TYPE)
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling implicit type constructor: " + f_sym->to_string());
@@ -1186,7 +1259,7 @@ namespace asc
                 as.external("HeapAlloc");
                 as.instruct(scope->name(), "call HeapAlloc");
                 int type_offset = 0;
-                for (auto* member : t_sym->members)
+                for (auto* member : t_sym->fields)
                 {
                     auto& meml = retrieve_stack_value(get_register(member->is_floating_point() ? "xmm4" : "rbx"));
                     as.instruct(scope->name(), "mov" + meml.instruction_suffix() + ' ' + relative_dereference("rax", type_offset, meml.word())
@@ -1238,18 +1311,30 @@ namespace asc
             }
             else
             {
-                auto* t = dynamic_cast<symbol*>(top_emulation());
-                if (t)
+                auto lit = stack_emulation.end() - 1;
+                for (; lit >= stack_emulation.begin(); lit--)
                 {
-                    auto it_mem = std::find_if(t->fqt.base->members.begin(), t->fqt.base->members.end(),
+                    auto* t = dynamic_cast<symbol*>(*lit);
+                    if (!t) continue;
+                    if (!(t->fqt.base)) continue;
+                    auto it_mem = std::find_if(t->fqt.base->fields.begin(), t->fqt.base->fields.end(),
                         [token](symbol* member) -> bool { return member->m_name == *token; });
-                    if (it_mem != t->fqt.base->members.end())
+                    if (it_mem != t->fqt.base->fields.end())
                     {
                         push_emulation(*it_mem);
                         (it = output.erase(it))--;
+                        break;
+                    }
+                    auto it_method = std::find_if(t->fqt.base->methods.begin(), t->fqt.base->methods.end(),
+                        [token](symbol* method) -> bool { return method->m_name == *token; });
+                    if (it_method != t->fqt.base->methods.end())
+                    {
+                        push_emulation(*it_method);
+                        (it = output.erase(it))--;
+                        break;
                     }
                 }
-                else
+                if (lit < stack_emulation.begin())
                 {
                     asc::err("invalid token encountered while parsing expression");
                     return STATE_SYNTAX_ERROR;
@@ -1275,6 +1360,11 @@ namespace asc
         if (scope == nullptr)
         {
             asc::err("return statement outside of function", lcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
+        if (scope->variant == symbol_variants::CONSTRUCTOR_METHOD)
+        {
+            asc::err("return statement not allowed in constructors", lcurrent->line);
             return STATE_SYNTAX_ERROR;
         }
         auto exp = eval_expression(lcurrent = lcurrent->next);
@@ -1378,7 +1468,7 @@ namespace asc
             syntax_node* identifier_node = lcurrent;
             symbol* member_symbol = new symbol(identifier, fqt, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
                 visibilities::PUBLIC, ns, static_cast<symbol*>(sym));
-            sym->members.push_back(member_symbol);
+            sym->fields.push_back(member_symbol);
             //symbol_table_insert(identifier, member_symbol);
             overall_size += fqt.base->get_size();
             while (!check_eof(lcurrent = lcurrent->next) && *(lcurrent) != ";");
@@ -1432,9 +1522,11 @@ namespace asc
         }
         if (check_eof(lcurrent = lcurrent->next)) // move past brace
             return STATE_SYNTAX_ERROR;
+        auto* start = lcurrent;
         type_symbol* sym = new type_symbol(identifier, {}, symbol_variants::OBJECT,
             visibilities::value_of(asc::to_uppercase(v)), 0, ns, this->scope);
         symbol_table_insert(identifier, sym);
+        // go through, define methods and find the size of the type
         while (!check_eof(lcurrent, true) && *lcurrent != "}")
         {
             auto of = eval_object_field(lcurrent, sym);
@@ -1448,6 +1540,8 @@ namespace asc
             if (of == STATE_FOUND)
                 continue;
         }
+        lcurrent = start; // move back to the beginning of the object
+        scope = sym; // scope into object
         return STATE_FOUND;
     }
 
@@ -1489,7 +1583,7 @@ namespace asc
             return STATE_NEUTRAL;
         symbol* member_symbol = symbol_table_insert(i, new symbol(i, fqt, symbol_variants::STRUCTLIKE_TYPE_MEMBER,
                 visibilities::PUBLIC, ns, static_cast<symbol*>(obj)));
-        obj->members.push_back(member_symbol);
+        obj->fields.push_back(member_symbol);
         obj->size += fqt.base->get_size();
         lcurrent = slcurrent;
         for (; !check_eof(lcurrent, true) && *(lcurrent->value) != ";"; lcurrent = lcurrent->next);
@@ -1518,15 +1612,22 @@ namespace asc
             if (check_eof(slcurrent, true))
                 return STATE_NEUTRAL;
         }
-        int t_line = slcurrent->line;
+        int t_line = -1;
         fully_qualified_type fqt;
-        evaluation_state t_state = eval_full_type(slcurrent, fqt);
-        if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
-            return t_state;
-        //asc::debug('t' << std::endl;
-        // at this point, it could still be a variable definition/declaration, so let's continue
-        if (check_eof(slcurrent, true))
-            return STATE_NEUTRAL;
+        evaluation_state t_state = STATE_FOUND;
+        if (*slcurrent != "constructor")
+        {
+            t_line = slcurrent->line;
+            t_state = eval_full_type(slcurrent, fqt);
+            if (t_state == STATE_NEUTRAL || t_state == STATE_SYNTAX_ERROR)
+                return t_state;
+            //asc::debug('t' << std::endl;
+            // at this point, it could still be a variable definition/declaration, so let's continue
+            if (check_eof(slcurrent, true))
+                return STATE_NEUTRAL;
+        }
+        else
+            fqt = { obj, 1 };
         int i_line = slcurrent->line;
         std::string& identifier = *(slcurrent->value); // get the identifier that MIGHT be there
         bool is_constructor = identifier == "constructor";
@@ -1551,11 +1652,16 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         }
         function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
-            symbol_variants::FUNCTION, visibilities::value_of(asc::to_uppercase(v)), ns, scope, false)));
+            is_constructor ? symbol_variants::CONSTRUCTOR_METHOD : symbol_variants::METHOD, visibilities::value_of(asc::to_uppercase(v)), ns, scope, false)));
+        obj->methods.push_back(f_symbol);
         if (!is_constructor) // add this parameter for non-constructor methods
-            f_symbol->parameters.push_back(new asc::symbol("_this", { obj, 1 },
-                symbol_variants::PARAMETER_VARIABLE, visibilities::INVALID, ns, scope));
-        for (int c = is_constructor ? 1 : 2, s = 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
+        {
+            symbol* that = new asc::symbol("this", { obj, 1 },
+                symbol_variants::PARAMETER_VARIABLE, visibilities::INVALID, ns, scope);
+            f_symbol->parameters.push_back(that);
+            that->offset = 16;
+        }
+        for (int c = is_constructor ? 1 : 2, s = is_constructor ? 8 : 16; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
         {
             lcurrent = lcurrent->next; // first, the argument type
             if (check_eof(lcurrent))
@@ -2022,6 +2128,16 @@ namespace asc
         if (stack_emulation.empty())
             return nullptr;
         return stack_emulation.back();
+    }
+
+    stackable_element* parser::emulation_element(int offset)
+    {
+        if (stack_emulation.empty())
+            return nullptr;
+        auto it = stack_emulation.end() - (offset + 1);
+        if (it < stack_emulation.begin() || it >= stack_emulation.end())
+            return nullptr;
+        return *it;
     }
 
     type_symbol* parser::get_type(std::string str)

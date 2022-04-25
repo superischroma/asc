@@ -102,6 +102,7 @@ namespace asc
         stackable_element* push_emulation(stackable_element* se);
         stackable_element* pop_emulation();
         stackable_element* top_emulation();
+        stackable_element* emulation_element(int offset);
 
         // type management
         type_symbol* get_type(std::string str);
