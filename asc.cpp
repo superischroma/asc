@@ -178,6 +178,12 @@ namespace asc
                 continue;
             if (es_tc == asc::STATE_SYNTAX_ERROR)
                 return -1;
+            asc::evaluation_state es_oc = ps.eval_object_construct();
+            asc::debug("object construct: " + std::to_string((int) es_oc));
+            if (es_oc == asc::STATE_FOUND)
+                continue;
+            if (es_oc == asc::STATE_SYNTAX_ERROR)
+                return -1;
             asc::evaluation_state es_exp = ps.eval_expression();
             asc::debug("expression: " + std::to_string((int) es_exp));
             if (es_exp == asc::STATE_FOUND)

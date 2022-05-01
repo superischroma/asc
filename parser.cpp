@@ -1545,7 +1545,7 @@ namespace asc
         return STATE_FOUND;
     }
 
-    evaluation_state parser::eval_object_construct(syntax_node*& lcurrent)
+    evaluation_state parser::eval_object_construct()
     {
         syntax_node* current = this->current;
         return eval_object_construct(current);

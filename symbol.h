@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <stack>
+#include <set>
 
 #include "syntax.h"
 
@@ -90,7 +91,13 @@ namespace asc
     storage_register& get_register(std::string&& str);
 
     class type_symbol; // forward declaration of type symbol
-    typedef struct fully_qualified_type fully_qualified_type; // forward decl of fqt
+
+    typedef struct
+    {
+        type_symbol* base = nullptr;
+        int pointer_level = 0;
+        std::set<specifier> specifiers;
+    } fully_qualified_type;
 
     class symbol: public stackable_element
     {
@@ -117,6 +124,18 @@ namespace asc
         int get_size() override;
     };
 
+    class function_symbol: public symbol
+    {
+    public:
+        std::deque<symbol*> parameters;
+        bool external_decl;
+
+        function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
+        symbol* get_parameter(std::string name);
+        std::string to_string() override;
+        int get_size() override;
+    };
+
     class type_symbol: public symbol
     {
     public:
@@ -135,18 +154,6 @@ namespace asc
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;
 
-    class function_symbol: public symbol
-    {
-    public:
-        std::deque<symbol*> parameters;
-        bool external_decl;
-
-        function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl);
-        symbol* get_parameter(std::string name);
-        std::string to_string() override;
-        int get_size() override;
-    };
-
     class reference_element: public stackable_element
     {
     public:
@@ -158,13 +165,6 @@ namespace asc
         std::string to_string() override;
         int get_size() override;
     };
-
-    typedef struct fully_qualified_type
-    {
-        type_symbol* base = nullptr;
-        int pointer_level = 0;
-        std::set<specifier> specifiers;
-    } fully_qualified_type;
 
     std::string word(int size);
     int compare(std::string& w1, std::string& w2);
