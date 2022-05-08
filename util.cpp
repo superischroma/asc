@@ -155,8 +155,6 @@ namespace asc
 
     std::string pointers(int count)
     {
-        char cs[count];
-        for (int i = 0; i < count; i++) cs[i] = '*';
-        return std::string(cs);
+        return std::string(count, '*');
     }
 }

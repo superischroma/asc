@@ -78,7 +78,8 @@ namespace asc
         int t_line = -1;
         fully_qualified_type fqt;
         evaluation_state t_state = STATE_FOUND;
-        if (*slcurrent != "constructor")
+        bool is_constructor = obj && *slcurrent == "_C" + obj->m_name;
+        if (!is_constructor)
         {
             t_line = slcurrent->line;
             t_state = eval_full_type(slcurrent, fqt);
@@ -99,7 +100,6 @@ namespace asc
         // at this point, it could still be a variable definition/declaration, so let's continue
         int i_line = slcurrent->line;
         std::string& identifier = *(slcurrent->value); // get the identifier that MIGHT be there
-        bool is_constructor = identifier == "constructor";
         if (is_constructor) // constructor method
             identifier = "_C" + scope->m_name;
         //asc::debug('i' << std::endl;
@@ -186,9 +186,9 @@ namespace asc
             }
             if (c <= 4 && !use_declaration)
             {
-                storage_register& stor = asc::get_register(fqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
-                    FP_ARG_REGISTER_SEQUENCE[c - 1] : ARG_REGISTER_SEQUENCE[c - 1]).byte_equivalent(fqt.base->get_size());
-                as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + ' ' + fqt.base->word() + " [rbp + " +
+                storage_register& stor = asc::get_register(afqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
+                    FP_ARG_REGISTER_SEQUENCE[c - 1] : ARG_REGISTER_SEQUENCE[c - 1]).byte_equivalent(afqt.base->get_size());
+                as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + ' ' + afqt.base->word() + " [rbp + " +
                     std::to_string(a_symbol->offset) + "], " + stor.m_name);
             }
             lcurrent = lcurrent->next; // lastly, what's next?
@@ -501,7 +501,7 @@ namespace asc
         syntax_node* slcurrent = lcurrent;
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
-        visibility v = scope != nullptr ? visibilities::LOCAL : visibilities::value_of(to_uppercase(*(slcurrent->value)));
+        visibility v = scope && scope->variant != symbol_variants::OBJECT ? visibilities::LOCAL : visibilities::value_of(to_uppercase(*(slcurrent->value)));
         if (v != visibilities::INVALID && v != visibilities::LOCAL)
             slcurrent = slcurrent->next;
         if (v == visibilities::INVALID)
@@ -515,18 +515,29 @@ namespace asc
         if (check_eof(slcurrent, true))
             return STATE_NEUTRAL;
         syntax_node* i_node = slcurrent; // copy identifier syntax node
+        int i_line = slcurrent->line;
         std::string i = *(slcurrent->value);
-        if (symbol_table_get_imm(i) != nullptr) // symbol with this name already exists in this scope
-        {
-            asc::err("symbol is already defined", slcurrent->line);
-            return STATE_SYNTAX_ERROR;
-        }
         if (check_eof(slcurrent = slcurrent->next, true))
             return STATE_NEUTRAL;
         bool arrayalloc = *(slcurrent->value) == "~=";
         if (*(slcurrent->value) != "=" && *(slcurrent->value) != ";" && *(slcurrent->value) != "~=") // this is NOT a variable declaration (most likely a function declaration)
             return STATE_NEUTRAL;
         lcurrent = i_node; // sync up local with identifier node
+        if (scope && scope->variant == symbol_variants::OBJECT) // instance and segregate variables are done thru the object eval method
+        {
+            for (; !check_eof(lcurrent, true) && *lcurrent != ";"; lcurrent = lcurrent->next);
+            if (check_eof(lcurrent))
+                return STATE_SYNTAX_ERROR;
+            lcurrent = lcurrent->next;
+            current = lcurrent;
+            asc::debug("skipping variable declaration for " + i + " because it is already defined for object " + scope->name());
+            return STATE_FOUND;
+        }
+        if (symbol_table_get_imm(i) != nullptr) // symbol with this name already exists in this scope
+        {
+            asc::err("symbol is already defined", slcurrent->line);
+            return STATE_SYNTAX_ERROR;
+        }
         symbol* sym = symbol_table_insert(*(i_node->value), new asc::symbol(*(i_node->value), fqt,
             (scope != nullptr ? symbol_variants::LOCAL_VARIABLE : symbol_variants::GLOBAL_VARIABLE), v, ns, scope));
         if (scope != nullptr)
@@ -1535,12 +1546,13 @@ namespace asc
             if (of == STATE_FOUND)
                 continue;
             auto om = eval_object_method(lcurrent, sym);
-            if (of == STATE_SYNTAX_ERROR)
+            if (om == STATE_SYNTAX_ERROR)
                 return STATE_SYNTAX_ERROR;
-            if (of == STATE_FOUND)
+            if (om == STATE_FOUND)
                 continue;
         }
         lcurrent = start; // move back to the beginning of the object
+        current = lcurrent;
         scope = sym; // scope into object
         return STATE_FOUND;
     }
@@ -1929,7 +1941,7 @@ namespace asc
         }
         dpc -= lsize;
         asc::debug("retrieved " + element->to_string() + ", stack size now " + std::to_string(dpc));
-        if (element->dynamic)
+        if (element && element->dynamic)
             delete element;
         pop_emulation();
         if (size != nullptr)
@@ -2061,9 +2073,7 @@ namespace asc
     {
         symbols[name].push_back(s);
         asc::debug(s->m_name + " added to symbol table");
-        std::cout << "0 " << m << std::endl; 
         if (m) m->symbol_table_insert(name, s);
-        std::cout << '1' << std::endl;
         return s;
     }
 

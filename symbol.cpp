@@ -158,10 +158,6 @@ namespace asc
 
     storage_register& get_register(std::string& str)
     {
-        for (auto& pair : STANDARD_REGISTERS)
-            std::cout << pair.first << ", " << pair.second << std::endl;
-        std::cout << STANDARD_REGISTERS.size() << std::endl;
-        std::cout << str << std::endl;
         return *(STANDARD_REGISTERS.at(str));
     }
 
