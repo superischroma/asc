@@ -115,7 +115,7 @@ namespace asc
             asc::err("type specifier expected", t_line);
             return STATE_SYNTAX_ERROR;
         }
-        if (symbol_table_get_imm(identifier) != nullptr)
+        if (!is_method && symbol_table_get_imm(identifier) != nullptr)
         {
             asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
@@ -128,9 +128,8 @@ namespace asc
         {
             symbol* that = f_symbol->get_parameter("this");
             symbol_table_insert(that->m_name, that);
-            storage_register& stor = asc::get_register(fqt.base->variant == symbol_variants::FLOATING_POINT_PRIMITIVE ?
-                "xmm0" : "rcx").byte_equivalent(fqt.base->get_size());
-            as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + ' ' + fqt.base->word() + " [rbp + " +
+            storage_register& stor = asc::get_register("rcx");
+            as.instruct(f_symbol->name(), "mov" + stor.instruction_suffix() + " qword [rbp + " +
                 std::to_string(that->offset) + "], " + stor.m_name);
         }
         for (int c = is_method && !is_constructor ? 2 : 1, s = is_method && !is_constructor ? 16 : 8; true; c++) // loop until we're at the end of the declaration, this is an infinite loop to make code smoother
@@ -1535,7 +1534,7 @@ namespace asc
             return STATE_SYNTAX_ERROR;
         auto* start = lcurrent;
         type_symbol* sym = new type_symbol(identifier, {}, symbol_variants::OBJECT,
-            visibilities::value_of(asc::to_uppercase(v)), 0, ns, this->scope);
+            visibilities::value_of(asc::to_uppercase(v)), 8, ns, this->scope);
         symbol_table_insert(identifier, sym);
         // go through, define methods and find the size of the type
         while (!check_eof(lcurrent, true) && *lcurrent != "}")
@@ -1663,8 +1662,9 @@ namespace asc
             asc::err("symbol is already defined");
             return STATE_SYNTAX_ERROR;
         }
+        symbol* sobj = dynamic_cast<symbol*>(obj);
         function_symbol* f_symbol = dynamic_cast<function_symbol*>(symbol_table_insert(identifier, new asc::function_symbol(identifier, fqt,
-            is_constructor ? symbol_variants::CONSTRUCTOR_METHOD : symbol_variants::METHOD, visibilities::value_of(asc::to_uppercase(v)), ns, scope, false)));
+            is_constructor ? symbol_variants::CONSTRUCTOR_METHOD : symbol_variants::METHOD, visibilities::value_of(asc::to_uppercase(v)), ns, sobj, false)));
         obj->methods.push_back(f_symbol);
         if (!is_constructor) // add this parameter for non-constructor methods
         {

@@ -158,7 +158,15 @@ namespace asc
 
     storage_register& get_register(std::string& str)
     {
-        return *(STANDARD_REGISTERS.at(str));
+        try
+        {
+            return *(STANDARD_REGISTERS.at(str));
+        }
+        catch (std::exception& e)
+        {
+            asc::debug(e.what());
+            throw e;
+        }
     }
 
     storage_register& get_register(std::string&& str)
