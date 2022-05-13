@@ -26,6 +26,6 @@ public object Location
 
 public int main()
 {
-    Location loc = Location(0, 0, 0);
+    Location* loc = Location(0, 0, 0);
     printf("%d", loc.getX());
 }

@@ -150,6 +150,7 @@ namespace asc
         bool is_primitive();
         int calc_size();
         int calc_field_offset(symbol* field);
+        function_symbol* get_method(std::string identifier);
     };
 
     extern std::map<std::string, asc::type_symbol> STANDARD_TYPES;

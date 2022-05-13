@@ -223,7 +223,7 @@ namespace asc
             init_heap();
             as.instruct(scope->name(), "mov rcx, qword [" + std::string(HEAP_PTR_IDENTIFIER) + ']');
             as.instruct(scope->name(), "mov rdx, 8");
-            as.instruct(scope->name(), "mov r8, " + that->fqt.base->calc_size());
+            as.instruct(scope->name(), "mov r8, " + std::to_string(that->fqt.base->calc_size()));
             as.external("HeapAlloc");
             as.instruct(scope->name(), "call HeapAlloc");
             as.instruct(scope->name(), "mov " + relative_dereference("rbp", that->offset) + ", rax");
@@ -578,11 +578,13 @@ namespace asc
                 return STATE_NEUTRAL;
             }
             std::string& value = *(lcurrent->value);
+            // literals
             if (is_numerical(value))
             {
                 output.push_back({ value, nullptr, !call_indices.empty() ? call_indices.top() : -1,
                     !functions.empty() ? functions.top() : nullptr, call_start ? !(call_start = false) : call_start });
             }
+            // operators
             else if (OPERATORS.count(value))
             {
                 expression_operator oper = OPERATORS[value];
@@ -623,12 +625,41 @@ namespace asc
                 if (!oper.helper)
                     operators.push(oper);
             }
+            // functions
             else if (lcurrent->next != nullptr && *(lcurrent->next) == "(")
             {
                 call_indices.push(0);
                 auto* sym = symbol_table_get(*(lcurrent->value));
+                if (!sym)
+                {
+                    if (output.empty())
+                    {
+                        asc::err("function or method not defined");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    auto* inst = symbol_table_get(output.back().value);
+                    if (!inst)
+                    {
+                        asc::err("function or method not defined");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    auto* obj = inst->fqt.base;
+                    if (!obj)
+                    {
+                        asc::err("function or method not defined");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    auto* m = obj->get_method(*(lcurrent->value));
+                    if (operators.empty() || operators.top().value != "." || !m)
+                    {
+                        asc::err("function or method not defined");
+                        return STATE_SYNTAX_ERROR;
+                    }
+                    sym = m;
+                }
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 auto* t_sym = dynamic_cast<type_symbol*>(sym);
+                std::cout << *(lcurrent->value) << ", " << (sym ? sym->to_string() : "null") << std::endl;
                 if (t_sym)
                 {
                     f_sym = dynamic_cast<function_symbol*>(symbol_table_get("_C" + t_sym->m_name));
@@ -642,12 +673,19 @@ namespace asc
                         asc::debug("created implicit constructor for " + t_sym->m_name + ": " + f_sym->to_string());
                     }
                 }
+                if (!f_sym)
+                {
+                    asc::err("function or method not defined");
+                    return STATE_SYNTAX_ERROR;
+                }
                 functions.push(f_sym);
                 operators.push({ f_sym->m_name, 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR, false, true });
                 call_start = true;
             }
+            // left paren
             else if (*(lcurrent) == "(")
                 operators.push({ *(lcurrent->value), 0, 2, LEFT_OPERATOR_ASSOCATION, INFIX_OPERATOR });
+            // right paren
             else if (*(lcurrent) == ")")
             {
                 while (true)
@@ -681,6 +719,7 @@ namespace asc
                     operators.pop();
                 }
             }
+            // anything else
             else
             {
                 fully_qualified_type fqt;
@@ -869,7 +908,7 @@ namespace asc
 
         for (auto it = output.begin(); it != output.end(); it++)
         {
-            {
+            { // expression evaluation state checkup
                 std::string db = "-- current expression parse iteration --\n - expression: ";
                 for (auto& it : output)
                     //db += it.value + " (parameter index: " + std::to_string(it.parameter_index) + ", function: " + (it.function == nullptr ? "none" : it.function->m_name) + ")\n";
@@ -883,6 +922,7 @@ namespace asc
             auto* element = &*it;
             std::string* token = &(element->value);
             symbol* sym = symbol_table_get(*token);
+            asc::debug(*token + ", " + (sym ? sym->to_string() : "no symbol associated"));
             if (OPERATORS.count(*token)) // operator
             {
                 auto& oper = OPERATORS[*token];
@@ -1208,9 +1248,8 @@ namespace asc
                     */
                 }
             }
-            else if (sym != nullptr && sym->variant == symbol_variants::FUNCTION ||
-                sym->variant == symbol_variants::METHOD || (sym->variant == symbol_variants::CONSTRUCTOR_METHOD &&
-                sym->scope->variant == symbol_variants::OBJECT)) // function call
+            else if (sym != nullptr && (sym->variant == symbol_variants::FUNCTION ||
+                sym->variant == symbol_variants::METHOD || sym->variant == symbol_variants::CONSTRUCTOR_METHOD)) // function call
             {
                 auto* f_sym = dynamic_cast<function_symbol*>(sym);
                 asc::debug("calling: " + f_sym->to_string());
@@ -1669,7 +1708,7 @@ namespace asc
         if (!is_constructor) // add this parameter for non-constructor methods
         {
             symbol* that = new asc::symbol("this", { obj, 1 },
-                symbol_variants::PARAMETER_VARIABLE, visibilities::INVALID, ns, scope);
+                symbol_variants::PARAMETER_VARIABLE, visibilities::INVALID, ns, f_symbol);
             f_symbol->parameters.push_back(that);
             that->offset = 16;
         }
@@ -2089,8 +2128,8 @@ namespace asc
     symbol* parser::get_current_function()
     {
         symbol* current = this->scope;
-        for (; current != nullptr && (current->variant != symbol_variants::FUNCTION ||
-            current->variant == symbol_variants::CONSTRUCTOR_METHOD); current = current->scope);
+        for (; current != nullptr && current->variant != symbol_variants::FUNCTION && current->variant != symbol_variants::METHOD &&
+            current->variant != symbol_variants::CONSTRUCTOR_METHOD; current = current->scope);
         return current;
     }
 

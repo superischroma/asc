@@ -409,6 +409,16 @@ namespace asc
         return off;
     }
 
+    function_symbol* type_symbol::get_method(std::string identifier)
+    {
+        for (auto method : methods)
+        {
+            if (method->m_name == identifier)
+                return method;
+        }
+        return nullptr;
+    }
+
     function_symbol::function_symbol(std::string name, fully_qualified_type fqt, symbol_variant variant, visibility vis, symbol* ns, symbol*& scope, bool external_decl):
         symbol(name, fqt, variant, vis, ns, scope)
     {
