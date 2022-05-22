@@ -475,7 +475,7 @@ namespace asc
 
     int reference_element::get_size()
     {
-        return !fqt.pointer_level ? fqt.base->size : 8;
+        return fqt.pointer_level == 0 ? fqt.base->size : 8;
     }
 
     std::string word(int size)

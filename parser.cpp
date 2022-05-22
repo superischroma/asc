@@ -1036,6 +1036,8 @@ namespace asc
                             retrieve_stack(get_register("rbx"));
                         else
                             forget_top();
+                        std::cout << s_dest << ", " << re_dest << std::endl;
+                        std::cout << scope << ", " << fz << ", " << src.m_name << std::endl;
                         as.instruct(scope->name(), "mov" + (fz ? std::string("s") + (fz == 8 ? 'd' : 's') : "")
                             + ' ' + (re_dest ? re_dest->word() + " [rbx]" :
                             relative_dereference("rbp", s_dest->offset, s_dest->word())) + ", " + src.m_name);
