@@ -32,8 +32,6 @@ namespace asc
         int dpm; // data preservation max (how many will we need at a time)
         bool heap; // has the heap been set up?
         std::deque<stackable_element*> stack_emulation;
-        parser* m; // main parser if this is an auxiliary one
-        std::string filepath;
 
         parser(syntax_node* root);
 

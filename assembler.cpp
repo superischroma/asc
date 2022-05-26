@@ -146,12 +146,6 @@ namespace asc
         return *this;
     }
 
-    assembler& assembler::include(std::string filename)
-    {
-        inc.insert(filename);
-        return *this;
-    }
-
     asc::subroutine*& assembler::sr(std::string& name, subroutine* parent)
     {
         asc::subroutine*& sr = subroutines[name];
@@ -206,8 +200,6 @@ namespace asc
     std::string assembler::construct()
     {
         std::string f;
-        for (auto& i : inc)
-            f += "%include \"" + i + "\"\n";
         for (auto& e : ext)
             f += "extern " + e + '\n';
         if (data.length() != 0)
@@ -222,8 +214,7 @@ namespace asc
         if (ext.size() != 0 || data.length() != 0 || bss.length() != 0)
             f += '\n';
         f += "section .text";
-        if (!entry.empty())
-            f += "\nglobal " + entry;
+        f += "\nglobal " + entry;
         for (std::pair<std::string, asc::subroutine*> subroutine : subroutines)
             f += '\n' + subroutine.first + ':' + subroutine.second->construct();
         return f;

@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
 }
 namespace asc
 {
-    int stable_compile(std::string& filepath, asc::parser* m)
+    int stable_compile(std::string& filepath)
     {
         if (!asc::ends_with(filepath, ".as"))
         {
@@ -131,8 +131,6 @@ namespace asc
         for (; current != nullptr; current = current->next)
             asc::debug(current->stringify());
         asc::parser ps = asc::parser(head);
-        if (m) ps.m = m;
-        ps.filepath = filepath;
         while (ps.parseable())
         {
             asc::debug("token: " + *(ps.current->value));
@@ -196,13 +194,8 @@ namespace asc
         asc::symbol* entry = ps.symbol_table_get(ps.as.entry);
         if (entry == nullptr)
         {
-            if (m)
-                ps.as.entry = "";
-            else
-            {
-                asc::err("no entry point found in program");
-                return -1;
-            }
+            asc::err("no entry point found in program");
+            return -1;
         }
         std::string asmfn = filepath.substr(0, filepath.length() - 3) + ".asm";
         std::ofstream os = std::ofstream(asmfn, std::ios::trunc);
@@ -223,17 +216,17 @@ namespace asc
         return 0;
     }
 
-    int experimental_compile(std::string& filepath, asc::parser* m)
+    int experimental_compile(std::string& filepath)
     {
-        return stable_compile(filepath, m);
+        return stable_compile(filepath);
     }
 
-    int compile(std::string filepath, asc::parser* m)
+    int compile(std::string filepath)
     {
         if (!has_option_set(args, cli_options::EXPERIMENTAL)) // if we're not in experimental mode
-            return stable_compile(filepath, m);
+            return stable_compile(filepath);
         else
-            return experimental_compile(filepath, m);
+            return experimental_compile(filepath);
     }
 
     int visually_tokenize(std::string filepath)
